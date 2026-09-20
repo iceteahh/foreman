@@ -1,0 +1,15 @@
+{
+  "description": "The same change task in a second language, so a prompt or policy change that only works for Go is caught.",
+  "kind": "code_fix",
+  "title": "Add dateparse.is_weekend",
+  "prompt": "Add a function `is_weekend(value: str) -> bool` to dateparse/parse.py returning True when the ISO date falls on a Saturday or Sunday, and export it from dateparse/__init__.py. Add tests for it in tests/test_parse.py covering a Saturday, a Sunday and a Wednesday.",
+  "policy": { "model": "haiku", "max_turns": 20, "max_cost_usd": 0.5, "max_retries": 1 },
+  "acceptance": { "commands": ["python3 -m unittest discover -s tests"], "diff_scope": ["dateparse/**", "tests/**"] },
+  "repo": { "dir": "fixtures/py-ledger", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "files_touched": ["dateparse/parse.py", "tests/test_parse.py"],
+    "max_attempts": 1
+  },
+  "tags": ["cheap", "python", "code_fix"]
+}

@@ -1,0 +1,146 @@
+# Values for the scaled topology (plan Step 22, design §10):
+#
+#   stateless orchestrator replicas → managed Postgres (store + queue)
+#                                   → object storage (audit logs, transcripts)
+#                                   → one Kubernetes Job per run, on its own node pool
+#
+# Nothing here carries a secret. Credentials come from two Secrets you create
+# yourself (or point at with existingSecret): the harness's own, and the
+# worker's, which is mounted into every Job by reference.
+
+replicaCount: 2
+
+image:
+  repository: harness
+  tag: ""              # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+worker:
+  # The pinned worker image. Bumping it is a golden-suite-gated change.
+  image: harness/worker:cli-2.1.270
+  imagePullPolicy: IfNotPresent
+  # Workers land on their own node pool: a runaway `npm install` should not
+  # evict the orchestrator.
+  nodeSelector:
+    harness.io/pool: workers
+  tolerations:
+    - key: harness.io/pool
+      operator: Equal
+      value: workers
+      effect: NoSchedule
+  resources:
+    cpuRequest: "500m"
+    cpuLimit: "2"
+    memoryRequest: 1Gi
+    memoryLimit: 4Gi
+  # Deleted this long after finishing; the harness has already streamed the
+  # logs into the audit sink.
+  ttlSeconds: 600
+  startTimeoutSeconds: 300
+  runAsUser: 1000
+  fsGroup: 1000
+  # Egress goes through the allowlisting proxy, which runs as its own Deployment.
+  egress:
+    enabled: true
+    replicaCount: 1
+    port: 3128
+    allow: []          # empty uses the harness's built-in allowlist
+
+# The orchestrator writes each checkout into this claim and every worker Job
+# mounts the matching subPath, so it MUST support ReadWriteMany: the two pods
+# hold it at the same time, usually on different nodes. On EKS use EFS, on GKE
+# Filestore, on AKS Azure Files. A ReadWriteOnce volume will bind the worker
+# Jobs to the orchestrator's node and stall as soon as you scale out.
+data:
+  existingClaim: ""
+  storageClassName: ""
+  accessMode: ReadWriteMany
+  size: 100Gi
+  mountPath: /var/lib/harness
+
+postgres:
+  # Point this at a managed instance. The chart does not run a database.
+  # The DSN is read from a Secret, never from values.
+  existingSecret: harness-postgres
+  dsnKey: dsn
+
+# The worker's Anthropic credential. Create it yourself:
+#   kubectl create secret generic harness-worker \
+#     --from-literal=CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-…
+# Every key in it becomes a worker environment variable, so put nothing else in it.
+workerSecret: harness-worker
+
+# The orchestrator's own secrets (GitHub token, Slack, webhook secret, S3 keys).
+harnessSecret: harness-orchestrator
+
+objectStorage:
+  endpoint: s3.amazonaws.com
+  region: us-east-1
+  useSSL: true
+  auditBucket: harness-audit
+  sessionBucket: harness-sessions
+
+concurrency:
+  global: 6
+  perKind:
+    code_fix: 4
+    code_fix_planned: 2
+    code_fix_fanout: 2
+    code_review: 2
+    report: 1
+    triage: 1
+
+budgets:
+  perRunUSDDefault: 2.50
+  dailyUSD:
+    code_fix: 60
+    code_fix_fanout: 40
+    judge: 10
+    global: 150
+
+fanout:
+  maxChildren: 8
+  sweepMinutes: 5
+
+review:
+  slackChannel: "#agent-review"
+  slaHours: 24
+
+observability:
+  enabled: true
+  otlpEndpoint: "otel-collector:4318"
+  otlpInsecure: true
+  prometheusAddr: ":9464"
+  environment: production
+  serviceMonitor: false
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: harness.example.com
+  tls: []
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Extra harness.yaml keys merged over what the chart renders.
+extraConfig: {}

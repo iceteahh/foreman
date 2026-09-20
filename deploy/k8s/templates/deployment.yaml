@@ -1,0 +1,89 @@
+# Stateless orchestrator replicas. Every replica leases jobs from the same
+# Postgres queue (FOR UPDATE SKIP LOCKED) and takes a named lease before any
+# periodic job or cron firing, so scaling this number up adds throughput
+# without doubling a nightly report (plan Step 22).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "harness.fullname" . }}
+  labels: {{- include "harness.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {{- include "harness.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # A config change restarts the replicas; otherwise they would keep
+        # serving the old harness.yaml until something else evicted them.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}{{- toYaml . | nindent 8 }}{{- end }}
+      labels: {{- include "harness.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "harness.fullname" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.worker.runAsUser }}
+        fsGroup: {{ .Values.worker.fsGroup }}
+      containers:
+        - name: harness
+          image: {{ include "harness.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["serve", "-config", "/etc/harness/harness.yaml"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+            - name: metrics
+              containerPort: 9464
+          env:
+            - name: HARNESS_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.existingSecret }}
+                  key: {{ .Values.postgres.dsnKey }}
+          envFrom:
+            # GITHUB_TOKEN, SLACK_BOT_TOKEN, GITHUB_WEBHOOK_SECRET, AWS keys —
+            # and the worker credential, which the harness needs for the judge.
+            - secretRef:
+                name: {{ .Values.harnessSecret }}
+            - secretRef:
+                name: {{ .Values.workerSecret }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/harness
+              readOnly: true
+            - name: data
+              mountPath: {{ .Values.data.mountPath }}
+      # In-flight runs get time to finish; the pool drains on SIGTERM.
+      terminationGracePeriodSeconds: 1800
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "harness.fullname" . }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "harness.dataClaim" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,166 @@
+# Local ops stack for M3 (plan Steps 14–18): the harness, the egress
+# allowlist proxy, an OTel collector, Prometheus, Grafana and MinIO.
+#
+#   make worker-image           # build the pinned worker image first
+#   make compose-up             # start the stack (sets HARNESS_HOST_DATA for you)
+#   open http://localhost:3000   # Grafana (admin/admin), dashboard pre-loaded
+#   curl http://localhost:18080/healthz
+#   open http://localhost:9091  # Prometheus
+#
+# Every host port is overridable when something else already owns it, e.g.
+# PROMETHEUS_PORT=19091 GRAFANA_PORT=13000 make compose-up.
+#   make compose-down
+#
+# The harness talks to the Docker socket to start worker containers, so it runs
+# with the socket mounted. Workers join `harness-internal`, which has no route
+# off the host: their only way out is the egress proxy.
+name: harness
+
+networks:
+  # Workers live here. internal: true removes the default gateway, so a worker
+  # cannot reach anything the proxy has not allowlisted.
+  harness-internal:
+    name: harness-internal
+    internal: true
+  ops:
+    name: harness-ops
+
+volumes:
+  minio-data:
+  grafana-data:
+  prom-data:
+
+services:
+  harness:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["serve", "-config", "/etc/harness/harness.yaml"]
+    environment:
+      # Worker credential: an API key, or a `claude setup-token` OAuth token.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
+      # MinIO credentials for the audit sink.
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      HARNESS_LOG: ${HARNESS_LOG:-info}
+      # Passed into worker.docker.host_data_root so sibling containers mount
+      # the host directory, not the harness container's view of it.
+      HARNESS_HOST_DATA: ${HARNESS_HOST_DATA:-}
+    volumes:
+      - ./harness.compose.yaml:/etc/harness/harness.yaml:ro
+      # The data root is a host bind mount, not a named volume: worker
+      # containers are siblings started through the host daemon, which
+      # resolves their -v sources on the host. worker.docker.host_data_root
+      # below tells the harness the host-side path of this directory.
+      - ${HARNESS_DATA:-./.compose-data}:/var/lib/harness
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      # Host ports are overridable: this stack shares a machine with whatever
+      # else is running (HARNESS_PORT=18080 make compose-up).
+      - "${HARNESS_PORT:-18080}:8080"  # intake API
+      - "${HARNESS_METRICS_PORT:-9464}:9464"
+    networks: [ops]
+    depends_on:
+      egress:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+
+  # The only route out of harness-internal. Also joined to ops so it can
+  # actually reach the allowlisted hosts.
+  egress:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["egress", "-config", "/etc/harness/harness.yaml", "-addr", ":3128"]
+    volumes:
+      - ./harness.compose.yaml:/etc/harness/harness.yaml:ro
+    networks:
+      harness-internal:
+        aliases: [egress]
+      ops:
+    expose: ["3128"]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "${OTLP_PORT:-4318}:4318"
+      - "${COLLECTOR_METRICS_PORT:-8889}:8889"
+      - "${COLLECTOR_SELF_METRICS_PORT:-8888}:8888"
+    networks: [ops]
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-rules.yaml:/etc/prometheus/rules.yaml:ro
+      - prom-data:/prometheus
+    ports: ["${PROMETHEUS_PORT:-9091}:9090"]
+    networks: [ops]
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports: ["${GRAFANA_PORT:-3000}:3000"]
+    networks: [ops]
+    depends_on: [prometheus]
+
+  # Audit log object storage (S3-compatible).
+  minio:
+    image: quay.io/minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    networks: [ops]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Creates the audit bucket and sets a retention lifecycle
+  # (retention.audit_ndjson_days). Object Lock needs a versioned bucket.
+  minio-init:
+    image: quay.io/minio/minio:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        mc alias set local http://minio:9000 minioadmin minioadmin
+        mc mb --ignore-existing --with-lock local/harness-audit
+        mc version enable local/harness-audit
+        mc retention set --default COMPLIANCE 365d local/harness-audit || true
+        mc ilm rule add --expire-days 365 local/harness-audit || true
+        echo "audit bucket ready"
+    networks: [ops]
+    depends_on:
+      minio:
+        condition: service_healthy

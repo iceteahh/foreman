@@ -1,0 +1,9 @@
+{
+  "allowed_tools": ["Read", "Edit", "Write", "Glob", "Grep", "Bash(git *)", "Bash(npm test)", "Bash(npm run lint)", "Bash(go test *)", "Bash(go build *)", "Bash(go vet *)"],
+  "max_turns": 30,
+  "timeout_ms": 900000,
+  "max_cost_usd": 2.5,
+  "max_retries": 2,
+  "judge": { "enabled": true, "samples": 1, "threshold": 7 },
+  "critical_tools": ["Edit", "Write"]
+}

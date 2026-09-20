@@ -1,0 +1,40 @@
+{
+  "name": "plan",
+  "review": true,
+  "policy": {
+    "allowed_tools": ["Read", "Glob", "Grep"],
+    "max_turns": 15,
+    "max_cost_usd": 0.75,
+    "max_retries": 1,
+    "judge": { "enabled": false, "samples": 0, "threshold": 0 },
+    "critical_tools": ["Read"]
+  },
+  "acceptance": {
+    "commands": [],
+    "diff_scope": [],
+    "expect_changes": false,
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "summary": { "type": "string" },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "files": { "type": "array", "items": { "type": "string" } },
+              "detail": { "type": "string" }
+            },
+            "required": ["title", "files", "detail"]
+          }
+        },
+        "tests": { "type": "array", "items": { "type": "string" } },
+        "risks": { "type": "array", "items": { "type": "string" } },
+        "open_questions": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["summary", "steps", "tests", "risks"]
+    }
+  }
+}

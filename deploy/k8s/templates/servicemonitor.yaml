@@ -1,0 +1,14 @@
+{{- if .Values.observability.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "harness.fullname" . }}
+  labels: {{- include "harness.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {{- include "harness.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+{{- end }}

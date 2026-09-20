@@ -1,0 +1,94 @@
+{{- if .Values.worker.egress.enabled }}
+# The allowlisting CONNECT proxy (design §4.1). Worker Jobs have HTTPS_PROXY
+# pointed at it, and a NetworkPolicy makes it their only route off the node —
+# a worker that decides to exfiltrate the checkout has nowhere to send it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "harness.fullname" . }}-egress
+  labels: {{- include "harness.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.egress.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "harness.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: egress
+  template:
+    metadata:
+      labels:
+        {{- include "harness.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: egress
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.worker.runAsUser }}
+      containers:
+        - name: egress
+          image: {{ include "harness.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["egress", "-config", "/etc/harness/harness.yaml"]
+          ports:
+            - name: proxy
+              containerPort: {{ .Values.worker.egress.port }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/harness
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "harness.fullname" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "harness.fullname" . }}-egress
+  labels: {{- include "harness.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "harness.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: egress
+  ports:
+    - name: proxy
+      port: {{ .Values.worker.egress.port }}
+      targetPort: proxy
+---
+# Worker pods may talk to the proxy and to nothing else in the cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "harness.fullname" . }}-workers
+  labels: {{- include "harness.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      harness.role: worker
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "harness.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: egress
+      ports:
+        - port: {{ .Values.worker.egress.port }}
+          protocol: TCP
+    # DNS, or the proxy's own name cannot be resolved.
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+{{- end }}

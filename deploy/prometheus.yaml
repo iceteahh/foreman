@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules.yaml
+
+scrape_configs:
+  # The harness exports its own metrics directly, which keeps them available
+  # even when the collector is down.
+  - job_name: harness
+    static_configs:
+      - targets: ["harness:9464"]
+  # Same metrics via the collector (resource attributes attached).
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]
+  # The collector's own health: spans and metrics accepted, refused, dropped.
+  - job_name: otel-collector-self
+    static_configs:
+      - targets: ["otel-collector:8888"]

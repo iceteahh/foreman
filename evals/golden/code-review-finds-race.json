@@ -1,0 +1,32 @@
+{
+  "description": "A read-only review of code with a documented concurrency bug. Pins that the reviewer finds the real defect and points at the right file, rather than producing generic style commentary.",
+  "kind": "code_review",
+  "title": "Review the price cache",
+  "prompt": "Review internal/cache/cache.go and the way cmd/api/main.go uses it. The service is a concurrent HTTP server. Report every finding you can point at a line for, with a severity.",
+  "policy": { "model": "haiku", "max_turns": 18, "max_cost_usd": 0.4, "max_retries": 0 },
+  "repo": { "dir": "fixtures/svc-logs", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "max_attempts": 1,
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "verdict": { "type": "string", "enum": ["comment", "request_changes"] },
+        "findings": {
+          "type": "array",
+          "minItems": 1,
+          "contains": {
+            "type": "object",
+            "properties": {
+              "file": { "type": "string", "pattern": "cache\\.go$" },
+              "severity": { "type": "string", "enum": ["blocker", "major"] }
+            },
+            "required": ["file", "severity"]
+          }
+        }
+      },
+      "required": ["summary", "verdict", "findings", "tests_reviewed"]
+    }
+  },
+  "tags": ["cheap", "go", "code_review"]
+}

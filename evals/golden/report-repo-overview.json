@@ -1,0 +1,28 @@
+{
+  "description": "A report task on a small service. Pins that the report is grounded: every section carries evidence, and the kind stays read-only.",
+  "kind": "report",
+  "title": "What does checkout-api do and where is its risk?",
+  "prompt": "Write a report for an engineer joining this service: what checkout-api does, how a price lookup flows through it, and where its known risk is. Cover the period the repository records. Back every section with a file path or a document you read.",
+  "policy": { "model": "haiku", "max_turns": 15, "max_cost_usd": 0.4, "max_retries": 0 },
+  "repo": { "dir": "fixtures/svc-logs", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "max_attempts": 1,
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "sections": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "properties": { "evidence": { "type": "array", "minItems": 1 } },
+            "required": ["heading", "body", "evidence"]
+          }
+        }
+      },
+      "required": ["title", "summary", "sections", "unknowns"]
+    }
+  },
+  "tags": ["cheap", "report"]
+}

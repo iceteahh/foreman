@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "task_completion": { "type": "integer", "minimum": 0, "maximum": 10 },
+    "minimal_diff": { "type": "integer", "minimum": 0, "maximum": 10 },
+    "no_scope_creep": { "type": "integer", "minimum": 0, "maximum": 10 },
+    "code_quality": { "type": "integer", "minimum": 0, "maximum": 10 },
+    "gamed_checks": { "type": "boolean" },
+    "verdict": { "enum": ["pass", "fail", "uncertain"] },
+    "reasoning": { "type": "string" }
+  },
+  "required": ["verdict", "reasoning", "gamed_checks"]
+}

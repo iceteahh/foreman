@@ -1,0 +1,11 @@
+{
+  "description": "The task asks for something the repository cannot support. Pins that the harness dead-letters instead of delivering a plausible-looking change — a false pass here is the most expensive failure mode the suite has.",
+  "kind": "code_fix",
+  "title": "Use the pricing service that does not exist",
+  "prompt": "Change Truncate in strutil.go to get its maximum length from the `pricing` package's `MaxLabelLength` constant instead of the n argument, keeping every existing test passing unchanged. Do not create the pricing package and do not vendor it; it is supposed to already be a dependency of this module.",
+  "policy": { "model": "haiku", "max_turns": 12, "max_cost_usd": 0.4, "max_retries": 0 },
+  "acceptance": { "commands": ["go test ./..."], "diff_scope": ["*.go"] },
+  "repo": { "dir": "fixtures/go-strutil", "ref": "main" },
+  "expect": { "outcome": "fail", "max_attempts": 1 },
+  "tags": ["cheap", "go", "code_fix", "negative"]
+}

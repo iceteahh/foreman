@@ -1,0 +1,18 @@
+{
+  "description": "A feature request phrased as a complaint. Pins that triage classifies by what is actually asked, not by tone.",
+  "kind": "triage",
+  "title": "Prices should be cached across restarts",
+  "prompt": "A user writes: \"Every time you deploy, the first requests are slow again because the price cache is empty. This is broken, please fix it.\" Classify this report.",
+  "policy": { "model": "haiku", "max_turns": 10, "max_cost_usd": 0.25, "max_retries": 0 },
+  "repo": { "dir": "fixtures/svc-logs", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "max_attempts": 1,
+    "output_schema": {
+      "type": "object",
+      "properties": { "category": { "const": "feature" } },
+      "required": ["category", "severity", "confidence", "component", "suspect_files", "reasoning", "missing_information"]
+    }
+  },
+  "tags": ["cheap", "triage"]
+}

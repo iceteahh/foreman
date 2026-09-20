@@ -1,0 +1,20 @@
+{{- if not .Values.data.existingClaim }}
+# The shared data root. It must be ReadWriteMany: the orchestrator pods write
+# each checkout into it and every worker Job mounts that subPath, so the volume
+# is held by several pods on several nodes at once. Transcripts do NOT live
+# here — they go to object storage (session.store: s3), so a retry never
+# depends on this volume having survived.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "harness.dataClaim" . }}
+  labels: {{- include "harness.labels" . | nindent 4 }}
+spec:
+  accessModes: [{{ .Values.data.accessMode | quote }}]
+  {{- with .Values.data.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.data.size | quote }}
+{{- end }}

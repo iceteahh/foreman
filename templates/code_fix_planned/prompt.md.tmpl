@@ -1,0 +1,14 @@
+You are planning a fix for an issue in the repository `{{ .Repo }}` (branch `{{ .Ref }}`).
+
+## Issue #{{ .Number }}: {{ .Title }}
+{{ .Body }}
+{{- if .URL }}
+
+Source: {{ .URL }}
+{{- end }}
+
+## Instructions
+- This is the planning phase: read the code, do not change any file.
+- Read `CLAUDE.md` in the workspace root first; it carries this repository's conventions.
+- Produce a plan a reviewer can approve: the smallest change that fixes the issue, the files it touches, the tests that prove it, and the risks.
+- Answer only with the structured plan; a reviewer approves it before you implement anything.

@@ -1,0 +1,22 @@
+{
+  "description": "A read-only review of code with nothing wrong with it. Pins that the reviewer can say so: an empty findings list with verdict approve, and no file touched.",
+  "kind": "code_review",
+  "title": "Review strutil.Title",
+  "prompt": "Review the `Title` function in strutil.go and its test. Judge whether it is correct for the inputs this library sees, whether its test is sufficient, and whether it follows CLAUDE.md. Report only findings you can point at a line for.",
+  "policy": { "model": "haiku", "max_turns": 15, "max_cost_usd": 0.4, "max_retries": 0 },
+  "repo": { "dir": "fixtures/go-strutil", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "max_attempts": 1,
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "verdict": { "type": "string", "enum": ["approve", "comment", "request_changes"] },
+        "findings": { "type": "array" },
+        "tests_reviewed": { "type": "boolean" }
+      },
+      "required": ["summary", "verdict", "findings", "tests_reviewed"]
+    }
+  },
+  "tags": ["cheap", "go", "code_review"]
+}

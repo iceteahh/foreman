@@ -1,0 +1,51 @@
+# harness.yaml for the cluster. It holds no secret: every credential is the
+# *name* of an environment variable that a Secret supplies.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "harness.fullname" . }}
+  labels: {{- include "harness.labels" . | nindent 4 }}
+data:
+  harness.yaml: |
+    {{- $k8s := dict
+      "namespace" .Release.Namespace
+      "credential_secret" .Values.workerSecret
+      "service_account" (include "harness.fullname" .)
+      "data_claim" (include "harness.dataClaim" .)
+      "image_pull_policy" .Values.worker.imagePullPolicy
+      "node_selector" .Values.worker.nodeSelector
+      "tolerations" .Values.worker.tolerations
+      "cpu_request" .Values.worker.resources.cpuRequest
+      "cpu_limit" .Values.worker.resources.cpuLimit
+      "memory_request" .Values.worker.resources.memoryRequest
+      "memory_limit" .Values.worker.resources.memoryLimit
+      "run_as_user" (int .Values.worker.runAsUser)
+      "fs_group" (int .Values.worker.fsGroup)
+      "ttl_seconds" (int .Values.worker.ttlSeconds)
+      "start_timeout_seconds" (int .Values.worker.startTimeoutSeconds) -}}
+    {{- if .Values.worker.egress.enabled -}}
+    {{- $_ := set $k8s "egress_proxy" (printf "http://%s-egress:%d" (include "harness.fullname" .) (int .Values.worker.egress.port)) -}}
+    {{- end -}}
+    {{- $egress := dict "addr" (printf ":%d" (int .Values.worker.egress.port)) -}}
+    {{- if .Values.worker.egress.allow -}}
+    {{- $_ := set $egress "allow" .Values.worker.egress.allow -}}
+    {{- end -}}
+    {{- $cfg := dict
+      "server" (dict "addr" (printf ":%d" (int .Values.service.port)))
+      "data_root" .Values.data.mountPath
+      "database" (dict "driver" "postgres" "dsn_env" "HARNESS_POSTGRES_DSN")
+      "concurrency" (dict "global" (int .Values.concurrency.global) "per_kind" .Values.concurrency.perKind)
+      "budgets" (dict "per_run_usd_default" .Values.budgets.perRunUSDDefault "daily_usd" .Values.budgets.dailyUSD)
+      "fanout" (dict "max_children" (int .Values.fanout.maxChildren) "sweep_minutes" (int .Values.fanout.sweepMinutes))
+      "review" (dict "slack_channel" .Values.review.slackChannel "sla_hours" (int .Values.review.slaHours))
+      "egress" $egress
+      "worker" (dict "mode" "k8s" "image" .Values.worker.image "check_version" true "k8s" $k8s)
+      "session" (dict "store" "s3" "endpoint" .Values.objectStorage.endpoint "bucket" .Values.objectStorage.sessionBucket
+        "region" .Values.objectStorage.region "use_ssl" .Values.objectStorage.useSSL)
+      "audit" (dict "sink" "s3" "endpoint" .Values.objectStorage.endpoint "bucket" .Values.objectStorage.auditBucket
+        "region" .Values.objectStorage.region "use_ssl" .Values.objectStorage.useSSL)
+      "observability" (dict "enabled" .Values.observability.enabled "otlp_endpoint" .Values.observability.otlpEndpoint
+        "otlp_insecure" .Values.observability.otlpInsecure "prometheus_addr" .Values.observability.prometheusAddr
+        "environment" .Values.observability.environment "progress" "slack") -}}
+    {{- range $k, $v := .Values.extraConfig }}{{- $_ := set $cfg $k $v }}{{- end }}
+    {{- toYaml $cfg | nindent 4 }}

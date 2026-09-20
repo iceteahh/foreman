@@ -1,0 +1,597 @@
+{
+  "uid": "harness-overview",
+  "title": "Harness \u2014 runs, cost, quality",
+  "description": "Design \u00a78 metric set for the claude -p harness: throughput, queue latency, spend against the daily ceilings, retry and permission-denial rates, and judge/human disagreement.",
+  "tags": [
+    "harness",
+    "agents"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "DS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "Prometheus"
+        },
+        "hide": 0
+      },
+      {
+        "name": "kind",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS}"
+        },
+        "query": "label_values(harness_runs_total, kind)",
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Throughput and health",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "collapsed": false
+    },
+    {
+      "id": 1,
+      "title": "Runs by status",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(harness_runs_total[$__rate_interval]))",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "description": "Runs reaching a terminal status. `dead` climbing means retries are being exhausted."
+    },
+    {
+      "id": 2,
+      "title": "Queue depth",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "sum by (state) (harness_queue_depth)",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "description": "Ready jobs growing while workers are idle usually means every kind is out of daily budget."
+    },
+    {
+      "id": 3,
+      "title": "Oldest ready job age",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "max(harness_queue_oldest_ready_age_seconds)",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "oldest ready"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "description": "Queue latency. Spikes with the rate-limit counter mean the pool is shedding concurrency."
+    },
+    {
+      "id": 4,
+      "title": "Run duration p50 / p95",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(harness_run_duration_seconds_bucket[$__rate_interval])))",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(harness_run_duration_seconds_bucket[$__rate_interval])))",
+          "refId": "B",
+          "format": "time_series",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "s"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Stage duration p95",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(harness_stage_duration_seconds_bucket[$__rate_interval])))",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{stage}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "description": "Where a run spends its time: queue, worker, checks, judge, deliver."
+    },
+    {
+      "id": 101,
+      "type": "row",
+      "title": "Cost",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "collapsed": false
+    },
+    {
+      "id": 6,
+      "title": "Spend today vs daily ceiling",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "targets": [
+        {
+          "expr": "harness_budget_spend_today_USD",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{key}} spent"
+        },
+        {
+          "expr": "harness_budget_limit_USD > 0",
+          "refId": "B",
+          "format": "time_series",
+          "legendFormat": "{{key}} ceiling"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "description": "USD spent today per kind and globally, against the configured ceiling. The global circuit breaker opens when spend reaches the global ceiling."
+    },
+    {
+      "id": 7,
+      "title": "Cost per run p50 / p95",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le, kind) (rate(harness_run_cost_USD_bucket[$__rate_interval])))",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "p50 {{kind}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, kind) (rate(harness_run_cost_USD_bucket[$__rate_interval])))",
+          "refId": "B",
+          "format": "time_series",
+          "legendFormat": "p95 {{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "title": "Cost per kind per day",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "targets": [
+        {
+          "expr": "sum by (kind) (increase(harness_spend_USD_total[1d]))",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "description": "Design \u00a78: cost per task kind per day. The judge is its own kind."
+    },
+    {
+      "id": 9,
+      "title": "Turns per run p95",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, kind) (rate(harness_run_turns_bucket[$__rate_interval])))",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 102,
+      "type": "row",
+      "title": "Quality and safety",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "collapsed": false
+    },
+    {
+      "id": 10,
+      "title": "Retry rate",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 34
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(harness_retries_total[$__rate_interval])) / clamp_min(sum(rate(harness_runs_total[$__rate_interval])), 0.0001)",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "retries per run"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "description": "Retries divided by terminal runs. A rising rate means prompts or acceptance commands need work."
+    },
+    {
+      "id": 11,
+      "title": "Judge verdicts",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 34
+      },
+      "targets": [
+        {
+          "expr": "sum by (verdict) (rate(harness_judge_verdicts_total[$__rate_interval]))",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{verdict}}"
+        },
+        {
+          "expr": "sum(rate(harness_judge_verdicts_total{gamed_checks=\"true\"}[$__rate_interval]))",
+          "refId": "B",
+          "format": "time_series",
+          "legendFormat": "gamed_checks"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "title": "Judge / human disagreement",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(harness_review_disagreements_total[$__rate_interval])) / clamp_min(sum(rate(harness_review_decisions_total[$__rate_interval])), 0.0001)",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "disagreement rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "description": "Humans approving a judge `fail` or rejecting a `pass`. Feeds the golden suite (Step 19/20)."
+    },
+    {
+      "id": 13,
+      "title": "Permission-denial rate by tool",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 42
+      },
+      "targets": [
+        {
+          "expr": "sum by (tool) (rate(harness_permission_denials_total[$__rate_interval]))",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{tool}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "description": "A spike is usually a policy misconfiguration, not a misbehaving worker."
+    },
+    {
+      "id": 14,
+      "title": "Dead letters and rate limiting",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 42
+      },
+      "targets": [
+        {
+          "expr": "sum by (kind) (increase(harness_dead_letters_total[$__rate_interval]))",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "dead {{kind}}"
+        },
+        {
+          "expr": "sum(increase(harness_rate_limited_total[$__rate_interval]))",
+          "refId": "B",
+          "format": "time_series",
+          "legendFormat": "rate limited"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "description": "Every dead letter pages. Rate limits trigger exponential backoff and a concurrency shed."
+    },
+    {
+      "id": 15,
+      "title": "Workers in flight",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 50
+      },
+      "targets": [
+        {
+          "expr": "sum by (kind) (harness_workers_active)",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 16,
+      "title": "Deliveries",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      },
+      "targets": [
+        {
+          "expr": "sum by (adapter, ok) (rate(harness_deliveries_total[$__rate_interval]))",
+          "refId": "A",
+          "format": "time_series",
+          "legendFormat": "{{adapter}} ok={{ok}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

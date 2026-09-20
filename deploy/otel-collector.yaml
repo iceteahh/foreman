@@ -1,0 +1,50 @@
+# Collector for the local stack: OTLP in, Prometheus out (scraped by
+# Prometheus), plus debug logging of traces so `make compose-up` shows spans
+# without a tracing backend. Swap the exporter for Tempo/Jaeger/Datadog.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 75
+    spike_limit_percentage: 20
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+  # The local stack has no tracing backend, so spans are logged. Swap this for
+  # otlp -> Tempo/Jaeger/Datadog in a real deployment.
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+  telemetry:
+    # info, not warn: the debug exporter writes spans at info level, and
+    # seeing them is the point of running the collector locally.
+    logs:
+      level: info
+    metrics:
+      # Collector self-metrics (otelcol_receiver_accepted_spans, …).
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888

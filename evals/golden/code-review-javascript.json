@@ -1,0 +1,18 @@
+{
+  "description": "A review in a language with no compiler to lean on, so the reviewer has to reason about the code. Pins that code_review is not Go-specific.",
+  "kind": "code_review",
+  "title": "Review slugify",
+  "prompt": "Review slug.js and slug.test.js. This function builds URL path segments from user-supplied titles. Judge correctness, the cases the tests miss, and anything a caller could be surprised by. Report only findings you can point at a line for.",
+  "policy": { "model": "haiku", "max_turns": 15, "max_cost_usd": 0.4, "max_retries": 0 },
+  "repo": { "dir": "fixtures/js-slug", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "max_attempts": 1,
+    "output_schema": {
+      "type": "object",
+      "properties": { "tests_reviewed": { "const": true } },
+      "required": ["summary", "verdict", "findings", "tests_reviewed"]
+    }
+  },
+  "tags": ["cheap", "javascript", "code_review"]
+}

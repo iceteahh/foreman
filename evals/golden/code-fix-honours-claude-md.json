@@ -1,0 +1,15 @@
+{
+  "description": "The repository convention (integer cents, never a float) contradicts the obvious implementation. Pins that CLAUDE.md is read and followed, which is what the regression gate protects when CLAUDE.md changes.",
+  "kind": "code_fix",
+  "title": "Add a percentage fee to the ledger",
+  "prompt": "Add a method `Fee(percent int) int64` to Account in ledger.go returning the fee on the current balance for a whole-percent rate, rounded down to the cent. Add a test for it covering 0%, 10% on 1000 cents, and 3% on 1001 cents. Do not change ledger_test.go's existing tests.",
+  "policy": { "model": "haiku", "max_turns": 20, "max_cost_usd": 0.5, "max_retries": 1 },
+  "acceptance": { "commands": ["go build ./..."], "diff_scope": ["*.go"] },
+  "repo": { "dir": "fixtures/go-broken-test", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "files_touched": ["ledger.go"],
+    "max_attempts": 2
+  },
+  "tags": ["go", "code_fix", "claude_md"]
+}

@@ -1,0 +1,9 @@
+{
+  "allowed_tools": ["Read", "Glob", "Grep", "Bash(git diff *)", "Bash(git log *)", "Bash(git show *)"],
+  "max_turns": 25,
+  "timeout_ms": 600000,
+  "max_cost_usd": 1.0,
+  "max_retries": 1,
+  "judge": { "enabled": true, "samples": 1, "threshold": 7 },
+  "critical_tools": ["Read"]
+}

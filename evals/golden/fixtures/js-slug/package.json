@@ -1,0 +1,7 @@
+{
+  "name": "slugger",
+  "version": "1.0.0",
+  "private": true,
+  "main": "slug.js",
+  "scripts": { "test": "node --test" }
+}

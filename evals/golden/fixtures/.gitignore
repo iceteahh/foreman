@@ -1,0 +1,6 @@
+# Build and cache droppings from verifying a fixture by hand. They must never
+# reach a fixture repository: the suite commits the whole tree, and a stray
+# __pycache__ or binary would show up in every case's diff.
+__pycache__/
+*.pyc
+node_modules/

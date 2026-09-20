@@ -1,0 +1,28 @@
+{
+  "description": "A report on a second language's repository, pinning that the report kind is not Go-specific and that its evidence really comes from the files.",
+  "kind": "report",
+  "title": "What does dateparse offer and what is missing?",
+  "prompt": "Write a report on the dateparse package: what it exposes today, what its tests cover, and what a caller would reasonably expect that it does not yet do. Back every section with a file path.",
+  "policy": { "model": "haiku", "max_turns": 12, "max_cost_usd": 0.35, "max_retries": 0 },
+  "repo": { "dir": "fixtures/py-ledger", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "max_attempts": 1,
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "sections": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "properties": { "evidence": { "type": "array", "minItems": 1 } },
+            "required": ["heading", "body", "evidence"]
+          }
+        }
+      },
+      "required": ["title", "summary", "sections", "unknowns"]
+    }
+  },
+  "tags": ["python", "report"]
+}

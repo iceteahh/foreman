@@ -1,0 +1,19 @@
+{
+  "commands": [],
+  "diff_scope": [],
+  "custom_checks": [],
+  "json_schema": {
+    "type": "object",
+    "properties": {
+      "category": { "type": "string", "enum": ["bug", "feature", "question", "docs", "duplicate", "invalid", "needs_info"] },
+      "severity": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+      "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+      "component": { "type": "string", "description": "the area of the codebase most likely responsible" },
+      "suspect_files": { "type": "array", "items": { "type": "string" } },
+      "reasoning": { "type": "string", "description": "what in the code led to this classification" },
+      "missing_information": { "type": "array", "items": { "type": "string" }, "description": "what the reporter still has to supply" },
+      "suggested_labels": { "type": "array", "items": { "type": "string" } }
+    },
+    "required": ["category", "severity", "confidence", "component", "suspect_files", "reasoning", "missing_information"]
+  }
+}

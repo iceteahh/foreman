@@ -1,0 +1,88 @@
+# harness.yaml for the Kubernetes deployment, rendered from deploy/k8s with
+# the chart's default values:
+#
+#   helm template harness deploy/k8s --namespace harness
+#
+# It is checked in so a test can load it (config_test.go): a chart that renders
+# a key the loader rejects would otherwise only fail on a cluster, at rollout.
+# Regenerate it with `make helm-config` after changing the chart.
+#
+# Nothing here is a secret. The Postgres DSN comes from $HARNESS_POSTGRES_DSN,
+# the worker credential from the Secret named in worker.k8s.credential_secret,
+# and the object-storage keys from the orchestrator's own Secret.
+audit:
+  bucket: harness-audit
+  endpoint: s3.amazonaws.com
+  region: us-east-1
+  sink: s3
+  use_ssl: true
+budgets:
+  daily_usd:
+    code_fix: 60
+    code_fix_fanout: 40
+    global: 150
+    judge: 10
+  per_run_usd_default: 2.5
+concurrency:
+  global: 6
+  per_kind:
+    code_fix: 4
+    code_fix_fanout: 2
+    code_fix_planned: 2
+    code_review: 2
+    report: 1
+    triage: 1
+data_root: /var/lib/harness
+database:
+  driver: postgres
+  dsn_env: HARNESS_POSTGRES_DSN
+egress:
+  addr: :3128
+fanout:
+  max_children: 8
+  sweep_minutes: 5
+observability:
+  enabled: true
+  environment: production
+  otlp_endpoint: otel-collector:4318
+  otlp_insecure: true
+  progress: slack
+  prometheus_addr: :9464
+review:
+  sla_hours: 24
+  slack_channel: '#agent-review'
+server:
+  addr: :8080
+session:
+  bucket: harness-sessions
+  endpoint: s3.amazonaws.com
+  region: us-east-1
+  store: s3
+  use_ssl: true
+worker:
+  check_version: true
+  image: harness/worker:cli-2.1.270
+  k8s:
+    cpu_limit: "2"
+    cpu_request: 500m
+    credential_secret: harness-worker
+    data_claim: harness-harness-data
+    egress_proxy: http://harness-harness-egress:3128
+    fs_group: 1000
+    image_pull_policy: IfNotPresent
+    memory_limit: 4Gi
+    memory_request: 1Gi
+    namespace: harness
+    node_selector:
+      harness.io/pool: workers
+    run_as_user: 1000
+    service_account: harness-harness
+    start_timeout_seconds: 300
+    tolerations:
+    - effect: NoSchedule
+      key: harness.io/pool
+      operator: Equal
+      value: workers
+    ttl_seconds: 600
+  mode: k8s
+

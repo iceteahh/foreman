@@ -1,0 +1,16 @@
+You are fixing an issue in the repository `{{ .Repo }}` (branch `{{ .Ref }}`).
+
+## Issue #{{ .Number }}: {{ .Title }}
+{{ .Body }}
+{{- if .URL }}
+
+Source: {{ .URL }}
+{{- end }}
+
+## Instructions
+- Read `CLAUDE.md` in the workspace root first; it carries this repository's conventions.
+- Make the smallest change that fixes the issue. Do not refactor unrelated code.
+- Add or update tests that prove the fix. Never delete or weaken existing tests.
+- Run the repository's test and lint commands before you finish.
+- Do not commit or push. The harness captures your working tree.
+- If the issue cannot be fixed as described, stop and explain why in your final message.

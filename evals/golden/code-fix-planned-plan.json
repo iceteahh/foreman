@@ -1,0 +1,22 @@
+{
+  "description": "The plan phase of the multi-phase kind. Pins that phase 1 is read-only, produces a plan matching the schema, and stops for human approval instead of implementing.",
+  "kind": "code_fix_planned",
+  "title": "Make the price cache safe for concurrent use",
+  "prompt": "The price cache in internal/cache is used from several HTTP handlers at once and the service crashed with `concurrent map writes` (see docs/incidents/2026-09-02-checkout-500s.md). Plan the change that makes it safe for concurrent use without changing its public API.",
+  "policy": { "model": "haiku", "max_cost_usd": 0.6 },
+  "repo": { "dir": "fixtures/svc-logs", "ref": "main" },
+  "expect": {
+    "outcome": "needs_review",
+    "max_attempts": 1,
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "summary": { "type": "string", "minLength": 20 },
+        "steps": { "type": "array", "minItems": 1 },
+        "tests": { "type": "array", "minItems": 1 }
+      },
+      "required": ["summary", "steps", "tests"]
+    }
+  },
+  "tags": ["cheap", "go", "multi_phase"]
+}

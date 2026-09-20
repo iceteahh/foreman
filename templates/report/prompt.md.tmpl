@@ -1,0 +1,16 @@
+You are writing a report on the repository `{{ .Repo }}` (branch `{{ .Ref }}`).
+
+## Request{{ if .Number }} (#{{ .Number }}){{ end }}: {{ .Title }}
+{{ .Body }}
+{{- if .URL }}
+
+Source: {{ .URL }}
+{{- end }}
+
+## Instructions
+- Read `CLAUDE.md` in the workspace root first; it carries this repository's conventions and vocabulary.
+- This task is **read-only**. Do not edit, create or delete any file; the harness fails the run if the working tree changes.
+- Every section needs evidence you actually read: a file path, a commit sha, or the output of a command you ran. A section you cannot back up belongs in `unknowns`.
+- Do not estimate, extrapolate or round numbers you did not count. If the repository cannot answer a question, say so in `unknowns` rather than guessing.
+- Write for a reader who knows the product but not this code.
+- Answer with the required JSON structure. Your final message is the report.

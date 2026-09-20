@@ -1,0 +1,40 @@
+{
+  "name": "synthesize",
+  "review": false,
+  "policy": {
+    "allowed_tools": ["Read", "Glob", "Grep"],
+    "max_turns": 15,
+    "max_cost_usd": 1.0,
+    "max_retries": 1,
+    "judge": { "enabled": false, "samples": 0, "threshold": 0 },
+    "critical_tools": ["Read"]
+  },
+  "acceptance": {
+    "commands": [],
+    "diff_scope": [],
+    "expect_changes": false,
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "summary": { "type": "string", "description": "what the fan-out achieved, for someone who reads nothing else" },
+        "delivered": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "subtask": { "type": "string" },
+              "artifacts": { "type": "array", "items": { "type": "string" } },
+              "assessment": { "type": "string", "description": "what this child actually produced, from its recorded evidence" }
+            },
+            "required": ["subtask", "artifacts", "assessment"]
+          }
+        },
+        "gaps": { "type": "array", "items": { "type": "string" }, "description": "subtasks that failed, were closed, or delivered less than they claimed" },
+        "merge_order": { "type": "array", "items": { "type": "string" }, "description": "the order the branches should be merged, when it matters" },
+        "unknowns": { "type": "array", "items": { "type": "string" }, "description": "what the recorded evidence could not tell you" }
+      },
+      "required": ["title", "summary", "delivered", "gaps", "unknowns"]
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "description": "A report with almost nothing in it. Pins that triage says it cannot tell — low confidence and a list of what is missing — instead of confidently inventing a component.",
+  "kind": "triage",
+  "title": "it broke",
+  "prompt": "A user filed: \"it broke, please fix\". There is no other information: no error message, no endpoint, no timestamp, no steps. Classify this report.",
+  "policy": { "model": "haiku", "max_turns": 10, "max_cost_usd": 0.25, "max_retries": 0 },
+  "repo": { "dir": "fixtures/svc-logs", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "max_attempts": 1,
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "category": { "enum": ["needs_info", "question", "invalid"] },
+        "confidence": { "const": "low" },
+        "missing_information": { "type": "array", "minItems": 2 }
+      },
+      "required": ["category", "severity", "confidence", "component", "suspect_files", "reasoning", "missing_information"]
+    }
+  },
+  "tags": ["cheap", "triage", "hallucination"]
+}

@@ -1,0 +1,19 @@
+Plan approved — implement it step by step.
+{{- if .Comment }}
+
+The reviewer added this note:
+
+> {{ .Comment }}
+{{- end }}
+
+## Approved plan
+
+```json
+{{ .Plan }}
+```
+
+## Instructions
+- Follow the approved plan. If the code forces a deviation, keep it minimal and explain it in your final message.
+- Add or update the tests the plan names. Never delete or weaken existing tests.
+- Run the repository's test and lint commands before you finish.
+- Do not commit or push. The harness captures your working tree.

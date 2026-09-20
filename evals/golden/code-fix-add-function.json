@@ -1,0 +1,15 @@
+{
+  "description": "The simplest change task: add one exported function with a test. Pins that a clean, well-specified fix passes checks and the judge on the first attempt.",
+  "kind": "code_fix",
+  "title": "Add strutil.Reverse",
+  "prompt": "Add an exported function `Reverse(s string) string` to strutil.go that returns s with its runes in reverse order. It must be correct for multi-byte characters: Reverse(\"héllo\") is \"olléh\". Add a test for it in strutil_test.go covering an ASCII string, a multi-byte string and the empty string.",
+  "policy": { "model": "haiku", "max_turns": 20, "max_cost_usd": 0.5, "max_retries": 1 },
+  "acceptance": { "commands": ["go test ./..."], "diff_scope": ["*.go"] },
+  "repo": { "dir": "fixtures/go-strutil", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "files_touched": ["strutil.go", "strutil_test.go"],
+    "max_attempts": 1
+  },
+  "tags": ["cheap", "go", "code_fix"]
+}

@@ -1,0 +1,39 @@
+The parallel workers have finished. Merge their results into one report.
+
+## Original request
+
+{{ .Task }}
+
+## Plan you produced
+
+```json
+{{ .Plan }}
+```
+
+## What each worker did
+{{ range .Children }}
+### {{ .Title }} (`{{ .TaskID }}`)
+
+- Run: `{{ .RunID }}` — **{{ .Status }}**
+{{- if .Checks }}
+- Checks: {{ .Checks }}
+{{- end }}
+{{- if .Artifacts }}
+- Artifacts: {{ range .Artifacts }}`{{ . }}` {{ end }}
+{{- end }}
+{{- if .Error }}
+- Last error: {{ .Error }}
+{{- end }}
+{{- if .Output }}
+
+```json
+{{ .Output }}
+```
+{{- end }}
+{{ end }}
+## Instructions
+- You are read-only: do not change any file. Your deliverable is the structured report.
+- Report what the evidence above shows, not what the plan hoped for. A worker whose run is `dead` or `closed` delivered nothing, however good its subtask sounded.
+- Put every subtask that failed, was closed, or delivered less than it claimed in `gaps`. A report that hides a missing branch is worse than no report: someone will merge the rest and believe the change is complete.
+- You may read the repository to check what the branches claim to do, but you cannot see the workers' branches themselves — say so in `unknowns` rather than guessing at their contents.
+- Set `merge_order` only when one branch must land before another; leave it empty when they are independent.

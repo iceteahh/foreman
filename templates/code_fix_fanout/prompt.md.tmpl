@@ -1,0 +1,16 @@
+You are decomposing a change to the repository `{{ .Repo }}` (branch `{{ .Ref }}`) into independent subtasks.
+
+## Issue #{{ .Number }}: {{ .Title }}
+{{ .Body }}
+{{- if .URL }}
+
+Source: {{ .URL }}
+{{- end }}
+
+## Instructions
+- This is the planning phase: read the code, do not change any file.
+- Read `CLAUDE.md` in the workspace root first; it carries this repository's conventions.
+- Split the work into subtasks that a separate worker can do **in its own checkout, without seeing the others' edits**.
+- Every file belongs to exactly one subtask, including the test files that subtask adds. Two subtasks that touch the same file will produce conflicting branches and one of them will be thrown away.
+- If the work cannot be split that way — one file carries the whole change, or step 2 depends on step 1's code — say so with a single subtask covering all of it. One honest subtask beats three that collide.
+- Give each subtask enough detail that a worker who has read only the repository and that paragraph can finish it.

@@ -1,0 +1,15 @@
+{
+  "description": "A change task in a third language with its own test runner, pinning that acceptance commands are not Go-shaped.",
+  "kind": "code_fix",
+  "title": "slugify must collapse repeated separators",
+  "prompt": "Add a test to slug.test.js asserting that slugify('Hello   ---   World') returns 'hello-world', then make it pass if it does not already. Do not widen the character class in the regular expression; CLAUDE.md forbids it.",
+  "policy": { "model": "haiku", "max_turns": 20, "max_cost_usd": 0.5, "max_retries": 1 },
+  "acceptance": { "commands": ["node --test"], "diff_scope": ["*.js"] },
+  "repo": { "dir": "fixtures/js-slug", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "files_touched": ["slug.test.js"],
+    "max_attempts": 1
+  },
+  "tags": ["cheap", "javascript", "code_fix"]
+}

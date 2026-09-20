@@ -1,0 +1,134 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "labels": {
+      "app.kubernetes.io/name": "harness-worker",
+      "harness.role": "worker",
+      "harness.run": "harness-run-01h8z",
+      "harness.task": "harness-tsk-01h8y"
+    },
+    "name": "harness-run-01h8z",
+    "namespace": "harness"
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "template": {
+      "metadata": {
+        "labels": {
+          "app.kubernetes.io/name": "harness-worker",
+          "harness.role": "worker",
+          "harness.run": "harness-run-01h8z",
+          "harness.task": "harness-tsk-01h8y"
+        }
+      },
+      "spec": {
+        "activeDeadlineSeconds": 900,
+        "automountServiceAccountToken": false,
+        "containers": [
+          {
+            "command": [
+              "claude",
+              "-p",
+              "fix the bug"
+            ],
+            "env": [
+              {
+                "name": "HOME",
+                "value": "/home/worker"
+              },
+              {
+                "name": "CLAUDE_CONFIG_DIR",
+                "value": "/run/claude-config"
+              },
+              {
+                "name": "HTTP_PROXY",
+                "value": "http://egress:3128"
+              },
+              {
+                "name": "HTTPS_PROXY",
+                "value": "http://egress:3128"
+              },
+              {
+                "name": "http_proxy",
+                "value": "http://egress:3128"
+              },
+              {
+                "name": "https_proxy",
+                "value": "http://egress:3128"
+              },
+              {
+                "name": "NO_PROXY",
+                "value": "localhost,127.0.0.1"
+              },
+              {
+                "name": "no_proxy",
+                "value": "localhost,127.0.0.1"
+              }
+            ],
+            "envFrom": [
+              {
+                "secretRef": {
+                  "name": "harness-worker"
+                }
+              }
+            ],
+            "image": "harness/worker:cli-2.1.243",
+            "name": "worker",
+            "resources": {
+              "limits": {
+                "cpu": "2",
+                "memory": "4Gi"
+              },
+              "requests": {
+                "cpu": "500m",
+                "memory": "1Gi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "readOnlyRootFilesystem": false
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/workspace",
+                "name": "data",
+                "subPath": "workspaces/run_01H8Z"
+              },
+              {
+                "mountPath": "/run/claude-config",
+                "name": "data",
+                "subPath": "claude-config/run_01H8Z"
+              }
+            ],
+            "workingDir": "/workspace"
+          }
+        ],
+        "nodeSelector": {
+          "harness.io/pool": "workers"
+        },
+        "restartPolicy": "Never",
+        "securityContext": {
+          "fsGroup": 1000,
+          "runAsNonRoot": true,
+          "runAsUser": 1000
+        },
+        "serviceAccountName": "harness-worker",
+        "volumes": [
+          {
+            "name": "data",
+            "persistentVolumeClaim": {
+              "claimName": "harness-data"
+            }
+          }
+        ]
+      }
+    },
+    "ttlSecondsAfterFinished": 600
+  }
+}

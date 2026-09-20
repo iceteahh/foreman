@@ -1,0 +1,39 @@
+# The orchestrator creates, follows and deletes worker Jobs; nothing more.
+# The worker pods get no token at all (automountServiceAccountToken: false in
+# the Job the harness builds), so a prompt-injected tool call inside a worker
+# cannot reach the API server even though its parent can.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "harness.fullname" . }}
+  labels: {{- include "harness.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "harness.fullname" . }}-workers
+  labels: {{- include "harness.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "harness.fullname" . }}-workers
+  labels: {{- include "harness.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "harness.fullname" . }}-workers
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "harness.fullname" . }}
+    namespace: {{ .Release.Namespace }}

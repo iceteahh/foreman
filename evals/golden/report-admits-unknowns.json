@@ -1,0 +1,18 @@
+{
+  "description": "A report question the repository cannot answer. Pins that the unanswerable part lands in `unknowns` rather than being invented, which is the failure mode that makes a report worthless.",
+  "kind": "report",
+  "title": "Production traffic and cost report",
+  "prompt": "Write a report covering: (1) what the price cache does, and (2) how many requests per second checkout-api served last month and what it cost to run. Use only what this repository contains.",
+  "policy": { "model": "haiku", "max_turns": 12, "max_cost_usd": 0.35, "max_retries": 0 },
+  "repo": { "dir": "fixtures/svc-logs", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "max_attempts": 1,
+    "output_schema": {
+      "type": "object",
+      "properties": { "unknowns": { "type": "array", "minItems": 1 } },
+      "required": ["title", "summary", "sections", "unknowns"]
+    }
+  },
+  "tags": ["cheap", "report", "hallucination"]
+}

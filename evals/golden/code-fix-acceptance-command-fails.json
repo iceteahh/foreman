@@ -1,0 +1,15 @@
+{
+  "description": "The acceptance command is the only thing standing between a plausible change and a wrong one. Pins that a change which compiles but fails the suite is not delivered.",
+  "kind": "code_fix",
+  "title": "Reverse must not corrupt multi-byte input",
+  "prompt": "Add `Reverse(s string) string` to strutil.go reversing the runes of s, plus a test in strutil_test.go asserting Reverse(\"héllo\") == \"olléh\" and Reverse(\"\") == \"\". A byte-wise reversal corrupts the multi-byte case and the test will catch it.",
+  "policy": { "model": "haiku", "max_turns": 20, "max_cost_usd": 0.5, "max_retries": 1 },
+  "acceptance": { "commands": ["go test ./...", "gofmt -l ."], "diff_scope": ["*.go"] },
+  "repo": { "dir": "fixtures/go-strutil", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "files_touched": ["strutil.go", "strutil_test.go"],
+    "max_attempts": 2
+  },
+  "tags": ["go", "code_fix", "acceptance"]
+}

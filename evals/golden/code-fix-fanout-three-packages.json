@@ -1,0 +1,24 @@
+{
+  "description": "The fan-out workflow end to end: a planner splits one change across three independent packages, three children run in parallel in their own checkouts, and the synthesizer reports what they delivered. Pins the property that makes fan-out worth doing — the subtasks are file-disjoint, so no child's branch clobbers another's.",
+  "kind": "code_fix_fanout",
+  "title": "Give every metric type a String method",
+  "prompt": "Every metric type in this repository renders itself the same way, but none of them can. Add a `String() string` method to `counter.Counter`, `gauge.Gauge` and `timer.Timer` following the rendering format in CLAUDE.md, each with a test in its own package. The three packages are independent and nothing imports anything else.",
+  "policy": { "model": "haiku", "max_cost_usd": 1.0 },
+  "acceptance": { "commands": ["go test ./..."] },
+  "repo": { "dir": "fixtures/go-fanout", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "max_attempts": 2,
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "summary": { "type": "string", "minLength": 20 },
+        "delivered": { "type": "array", "minItems": 1 },
+        "gaps": { "type": "array" }
+      },
+      "required": ["title", "summary", "delivered", "gaps"]
+    }
+  },
+  "tags": ["go", "fanout", "multi_phase"]
+}

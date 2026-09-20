@@ -1,0 +1,54 @@
+# Alerting rules for design §8: dead-letter arrivals, budget breaches,
+# permission-denial spikes and queue starvation. Point Alertmanager at these,
+# or read them in Grafana. Mounted as /etc/prometheus/rules.yaml.
+groups:
+  - name: harness
+    interval: 30s
+    rules:
+      - alert: HarnessDeadLetter
+        expr: increase(harness_dead_letters_total[10m]) > 0
+        labels: { severity: page }
+        annotations:
+          summary: "A harness run exhausted its retries"
+          description: "Run `harness requeue -list` to see it, `harness replay <run_id>` for the timeline."
+
+      - alert: HarnessGlobalBudgetExhausted
+        # Spend and ceiling are separate series with the same `key` label.
+        expr: harness_budget_spend_today_USD{key="global"} >= (harness_budget_limit_USD{key="global"} > 0)
+        for: 1m
+        labels: { severity: page }
+        annotations:
+          summary: "Global daily budget reached; the circuit breaker is open"
+          description: "No new runs start until the UTC day rolls over. Raise budgets.daily_usd.global to resume."
+
+      - alert: HarnessKindBudgetExhausted
+        expr: harness_budget_spend_today_USD >= (harness_budget_limit_USD > 0)
+        for: 1m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Daily budget for {{ $labels.key }} reached"
+          description: "The orchestrator has stopped leasing that kind and intake answers 429 until the UTC day rolls over."
+
+      - alert: HarnessPermissionDenialSpike
+        expr: sum(rate(harness_permission_denials_total[15m])) > 0.05
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Permission denials are spiking"
+          description: "Usually a tool-policy misconfiguration in templates/<kind>/policy.json, not a misbehaving worker."
+
+      - alert: HarnessQueueStarved
+        expr: max(harness_queue_oldest_ready_age_seconds) > 1800 and sum(harness_workers_active) == 0
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Jobs are queued but nothing is running"
+          description: "Check the daily budgets (harness budget), the rate-limit shed, and the worker credential."
+
+      - alert: HarnessJudgeDisagreement
+        expr: sum(rate(harness_review_disagreements_total[1h])) / clamp_min(sum(rate(harness_review_decisions_total[1h])), 0.0001) > 0.3
+        for: 30m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Humans are overriding the judge on more than 30% of reviews"
+          description: "The rubric or the threshold needs revisiting; convert the overrides into golden cases (plan Step 19)."

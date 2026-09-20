@@ -1,0 +1,46 @@
+{
+  "name": "decompose",
+  "review": false,
+  "fan_out": true,
+  "policy": {
+    "allowed_tools": ["Read", "Glob", "Grep"],
+    "max_turns": 20,
+    "max_cost_usd": 1.0,
+    "max_retries": 1,
+    "judge": { "enabled": false, "samples": 0, "threshold": 0 },
+    "critical_tools": ["Read"]
+  },
+  "acceptance": {
+    "commands": [],
+    "diff_scope": [],
+    "expect_changes": false,
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "summary": { "type": "string", "description": "the whole change in one sentence" },
+        "subtasks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string", "description": "short label, used as the child task title" },
+              "detail": { "type": "string", "description": "everything a worker who sees only this paragraph and the repository needs" },
+              "files": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string" },
+                "description": "every path this subtask may create or modify, tests included; no path may appear in two subtasks"
+              },
+              "commands": { "type": "array", "items": { "type": "string" }, "description": "acceptance commands for this subtask alone; omit to use the repository default" }
+            },
+            "required": ["title", "detail", "files"]
+          }
+        },
+        "risks": { "type": "array", "items": { "type": "string" }, "description": "what could make the parallel split wrong" }
+      },
+      "required": ["summary", "subtasks", "risks"]
+    }
+  }
+}

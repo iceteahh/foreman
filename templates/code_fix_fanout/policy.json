@@ -1,0 +1,9 @@
+{
+  "allowed_tools": ["Read", "Glob", "Grep"],
+  "max_turns": 20,
+  "timeout_ms": 900000,
+  "max_cost_usd": 1.5,
+  "max_retries": 1,
+  "judge": { "enabled": false, "samples": 0, "threshold": 0 },
+  "critical_tools": ["Read"]
+}

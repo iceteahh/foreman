@@ -1,0 +1,28 @@
+{
+  "commands": [],
+  "diff_scope": [],
+  "custom_checks": [],
+  "json_schema": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string" },
+      "period": { "type": "string", "description": "the window the report covers, e.g. 2026-09-08..2026-09-15" },
+      "summary": { "type": "string", "description": "what a reader who reads nothing else needs to know" },
+      "sections": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "properties": {
+            "heading": { "type": "string" },
+            "body": { "type": "string" },
+            "evidence": { "type": "array", "items": { "type": "string" }, "description": "file paths, commit shas or command output backing this section" }
+          },
+          "required": ["heading", "body", "evidence"]
+        }
+      },
+      "unknowns": { "type": "array", "items": { "type": "string" }, "description": "questions the available evidence could not answer" }
+    },
+    "required": ["title", "summary", "sections", "unknowns"]
+  }
+}

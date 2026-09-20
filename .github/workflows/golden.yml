@@ -1,0 +1,163 @@
+# Layer 4: the golden suite and the regression gate (plan Steps 19 and 20).
+#
+# Two jobs, because they cost very different things:
+#
+#   validate  — free. Runs on every PR. Proves every case file parses, points at
+#               a fixture that exists, and builds a task the harness accepts.
+#   gate      — spends tokens. Runs nightly, and on a PR that touches the things
+#               a golden regression actually comes from: prompt templates,
+#               CLAUDE.md, tool policies, the evaluation code, or the pinned CLI
+#               and model. Blocked when the pass rate drops more than the delta.
+name: golden
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # 03:30 UTC nightly.
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+    inputs:
+      max_cost_usd:
+        description: "suite cost cap in dollars"
+        default: "8"
+
+env:
+  # The nightly budget. `harness eval run` stops once this is spent and marks
+  # the report BudgetExhausted, which the gate refuses to accept — a truncated
+  # run can neither block nor bless a change.
+  MAX_COST_USD: ${{ github.event.inputs.max_cost_usd || '8' }}
+  BASELINE: evals/reports/baseline.json
+
+jobs:
+  # Free on every PR: a malformed case must fail here, not in a paid run.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -count=1 ./internal/eval/golden/... ./templates/...
+      - run: go run ./cmd/harness eval list evals/golden
+
+  # Does this PR touch something a golden regression comes from?
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      sensitive: ${{ steps.filter.outputs.sensitive }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          base=$(git merge-base origin/${{ github.base_ref }} HEAD)
+          changed=$(git diff --name-only "$base" HEAD)
+          echo "changed files:"; echo "$changed"
+          # The regression gate's remit, from plan Step 20: prompt templates,
+          # CLAUDE.md, tool policies, the evaluation pipeline, the pinned CLI
+          # and model, and the suite itself.
+          if echo "$changed" | grep -Eq '^(templates/|CLAUDE\.md$|evals/|internal/eval/|internal/runner/version\.go$|harness\.example\.yaml$|worker/)'; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  gate:
+    needs: changes
+    # A fork PR has no access to the worker credential, and a suite that cannot
+    # spawn a worker would report a false regression on every case.
+    if: >-
+      needs.changes.outputs.sensitive == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    concurrency:
+      # One paid suite at a time: two concurrent runs would double the spend
+      # and race for the same daily budget.
+      group: golden-gate
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the pinned Claude Code CLI
+        run: |
+          set -euo pipefail
+          pinned=$(sed -n 's/^const PinnedCLIVersion = "\(.*\)"$/\1/p' internal/runner/version.go)
+          echo "pinned CLI: $pinned"
+          npm install -g "@anthropic-ai/claude-code@$pinned"
+          claude --version
+
+      - name: Write the suite config
+        run: |
+          cat > golden.yaml <<'CFG'
+          data_root: .harness-golden
+          concurrency: { global: 2 }
+          worker:
+            mode: local
+            # The workflow installs the pinned version above, so drift here is
+            # a real failure rather than a local-machine annoyance.
+            check_version: true
+          judge: { model: haiku, max_turns: 5, max_cost_usd: 0.15 }
+          observability: { progress: log, prometheus_addr: "" }
+          review: { slack_channel: "" }
+          retention: { workspaces: destroy_on_capture }
+          CFG
+
+      - name: Run the golden suite
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -euo pipefail
+          go run ./cmd/harness eval run evals/golden \
+            -config golden.yaml \
+            -max-cost "$MAX_COST_USD" \
+            -out evals/reports/run.json \
+            || echo "suite reported failures; the gate below decides"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-report
+          path: evals/reports/run.json
+
+      - name: Regression gate
+        run: |
+          set -euo pipefail
+          if [ -f "$BASELINE" ]; then
+            go run ./cmd/harness eval gate -baseline "$BASELINE" -report evals/reports/run.json -max-drop 0.05
+          else
+            echo "no baseline at $BASELINE; enforcing the absolute floor only"
+            go run ./cmd/harness eval gate -report evals/reports/run.json -min-pass-rate 0.8
+          fi
+
+      # The nightly run on main is what the next PR is measured against.
+      - name: Publish the baseline
+        if: github.event_name == 'schedule' && success()
+        run: |
+          set -euo pipefail
+          cp evals/reports/run.json "$BASELINE"
+          cp evals/reports/run.json "evals/reports/$(date -u +%F).json"
+          git config user.name harness-bot
+          git config user.email harness-bot@users.noreply.github.com
+          git add evals/reports
+          git commit -m "golden: nightly baseline $(date -u +%F)" || exit 0
+          git push

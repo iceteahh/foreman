@@ -1,0 +1,29 @@
+{
+  "commands": [],
+  "diff_scope": [],
+  "custom_checks": [],
+  "json_schema": {
+    "type": "object",
+    "properties": {
+      "summary": { "type": "string", "description": "two or three sentences on what the change does and whether it is safe to merge" },
+      "verdict": { "type": "string", "enum": ["approve", "comment", "request_changes"] },
+      "findings": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "file": { "type": "string" },
+            "line": { "type": "integer" },
+            "severity": { "type": "string", "enum": ["blocker", "major", "minor", "nit"] },
+            "category": { "type": "string", "enum": ["correctness", "security", "performance", "maintainability", "testing", "style"] },
+            "finding": { "type": "string" },
+            "suggestion": { "type": "string" }
+          },
+          "required": ["file", "severity", "category", "finding"]
+        }
+      },
+      "tests_reviewed": { "type": "boolean", "description": "whether the change's tests were read and judged sufficient" }
+    },
+    "required": ["summary", "verdict", "findings", "tests_reviewed"]
+  }
+}

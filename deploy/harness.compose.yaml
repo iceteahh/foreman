@@ -1,0 +1,98 @@
+# harness.yaml for the compose stack (deploy/docker-compose.yaml).
+# Container workers, daily budgets, OTel to the collector, audit to MinIO.
+server:
+  addr: ":8080"
+data_root: /var/lib/harness
+
+concurrency:
+  global: 2
+  per_kind: { code_fix: 2, code_fix_planned: 1 }
+
+budgets:
+  per_run_usd_default: 2.50
+  daily_usd: { code_fix: 20, code_fix_planned: 10, judge: 5, global: 40 }
+
+worker:
+  mode: docker
+  image: harness/worker:cli-2.1.270
+  budget_flag_ratio: 0.9
+  grace_ms: 10000
+  # The image's CLI is checked against internal/runner.PinnedCLIVersion at startup.
+  check_version: true
+  docker:
+    network: harness-internal      # internal: the proxy is the only way out
+    user: host                     # keep bind-mounted files writable on Linux
+    egress_proxy: http://egress:3128
+    memory: 4g
+    cpus: 2
+    pids_limit: 512
+    read_only_root: false          # go build and npm need a writable tree
+    kill_timeout_ms: 120000
+    # data_root as the *host* sees it. The harness runs in a container here,
+    # and worker containers are siblings started through the host daemon, so
+    # their bind-mount sources must be host paths. compose-up sets it.
+    host_data_root: $HARNESS_HOST_DATA
+
+egress:
+  addr: ":3128"
+  allow:
+    - api.anthropic.com
+    - github.com
+    - "*.github.com"
+    - "*.githubusercontent.com"
+    - proxy.golang.org
+    - sum.golang.org
+    - storage.googleapis.com
+    - registry.npmjs.org
+
+observability:
+  enabled: true
+  otlp_endpoint: otel-collector:4318
+  otlp_insecure: true
+  prometheus_addr: ":9464"
+  metric_interval_ms: 15000
+  trace_sample_ratio: 1
+  environment: compose
+  progress: log                    # "slack" once SLACK_BOT_TOKEN is set
+  progress_interval_ms: 15000
+
+audit:
+  sink: s3
+  endpoint: minio:9000
+  bucket: harness-audit
+  prefix: runs/
+  region: us-east-1
+  use_ssl: false
+  access_key_env: AWS_ACCESS_KEY_ID
+  secret_key_env: AWS_SECRET_ACCESS_KEY
+
+judge:
+  default_threshold: 7
+  model: haiku
+  max_turns: 5
+  max_cost_usd: 0.25
+  timeout_ms: 180000
+
+review:
+  slack_channel: "#agent-review"
+  sla_hours: 24
+  escalation_mention: "<!here>"
+  escalation_check_minutes: 5
+
+github:
+  draft_prs: true
+  trigger_label: harness
+  kind: code_fix
+
+queue:
+  poll_interval_ms: 1000
+  max_job_attempts: 5
+  api_error_backoff_seconds: 60
+
+retention:
+  workspaces: destroy_on_capture
+  sessions_days: 30
+  audit_ndjson_days: 365
+
+env:
+  GOFLAGS: "-mod=mod"

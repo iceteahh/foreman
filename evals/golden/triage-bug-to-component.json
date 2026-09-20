@@ -1,0 +1,25 @@
+{
+  "description": "A bug report that matches a recorded incident. Pins that triage lands on the right component and suspect file instead of guessing from the issue title.",
+  "kind": "triage",
+  "title": "Checkout intermittently returns 500 under load",
+  "prompt": "A customer reports that the checkout page intermittently fails with a server error during busy periods, roughly a few percent of requests, and that it recovers by itself. Classify this report and point at the code most likely responsible.",
+  "policy": { "model": "haiku", "max_turns": 12, "max_cost_usd": 0.3, "max_retries": 0 },
+  "repo": { "dir": "fixtures/svc-logs", "ref": "main" },
+  "expect": {
+    "outcome": "pass",
+    "max_attempts": 1,
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "category": { "const": "bug" },
+        "suspect_files": {
+          "type": "array",
+          "minItems": 1,
+          "contains": { "type": "string", "pattern": "cache" }
+        }
+      },
+      "required": ["category", "severity", "confidence", "component", "suspect_files", "reasoning", "missing_information"]
+    }
+  },
+  "tags": ["cheap", "triage"]
+}

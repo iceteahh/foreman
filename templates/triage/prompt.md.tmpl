@@ -1,0 +1,17 @@
+You are triaging an incoming report against the repository `{{ .Repo }}` (branch `{{ .Ref }}`).
+
+## Issue{{ if .Number }} #{{ .Number }}{{ end }}: {{ .Title }}
+{{ .Body }}
+{{- if .URL }}
+
+Source: {{ .URL }}
+{{- end }}
+
+## Instructions
+- Read `CLAUDE.md` in the workspace root first; it carries this repository's conventions.
+- This task is **read-only**. Do not edit, create or delete any file; the harness fails the run if the working tree changes.
+- Do not fix anything. Classify the report and point at the code most likely responsible.
+- Find the suspect files by reading the code, not by guessing from the issue text. List only paths that exist in this repository.
+- Set `confidence: low` and fill `missing_information` when the report does not say enough to place it. Guessing confidently is worse than saying you cannot tell.
+- `critical` means data loss, a security hole, or the product being unusable — not "looks important".
+- Answer with the required JSON structure. Your final message is the triage.

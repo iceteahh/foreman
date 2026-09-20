@@ -1,0 +1,30 @@
+version: "2"
+run:
+  timeout: 5m
+  build-tags: []
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - misspell
+    - gosec
+    - errorlint
+    - bodyclose
+    - noctx
+  settings:
+    gosec:
+      excludes:
+        - G204 # exec with variable args is the whole point of the runner; argv only, never a shell
+        - G304 # file paths are harness-controlled
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [gosec, errcheck, noctx, bodyclose]
+formatters:
+  enable:
+    - gofmt
+    - goimports

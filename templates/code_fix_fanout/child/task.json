@@ -1,0 +1,14 @@
+{
+  "kind": "code_fix",
+  "session_mode": "fork",
+  "max_children": 8,
+  "policy": {
+    "max_turns": 30,
+    "max_cost_usd": 2.0,
+    "max_retries": 1,
+    "judge": { "enabled": true, "samples": 1, "threshold": 7 }
+  },
+  "acceptance": {
+    "custom_checks": []
+  }
+}
