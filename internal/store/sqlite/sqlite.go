@@ -15,8 +15,8 @@ import (
 
 	_ "modernc.org/sqlite" // driver
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/store"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/store"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 //go:embed migrations/*.sql

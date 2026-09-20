@@ -15,7 +15,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/queue"
+	"github.com/100xteam-ai/foreman/internal/queue"
 )
 
 func open(t *testing.T) (*Queue, *time.Time) {

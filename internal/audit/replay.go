@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/events"
+	"github.com/100xteam-ai/foreman/internal/events"
 )
 
 // ReplayOptions tune the timeline (plan Step 17, `harness replay <run_id>`).

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/container"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/container"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // Docker is a Manager whose workspaces run acceptance commands inside the

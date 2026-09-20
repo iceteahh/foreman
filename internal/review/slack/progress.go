@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/obs"
+	"github.com/100xteam-ai/foreman/internal/obs"
 )
 
 // ProgressChannel publishes the live run timeline as one Slack message per run

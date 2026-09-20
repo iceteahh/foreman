@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/checks"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/workspace"
+	"github.com/100xteam-ai/foreman/internal/eval/checks"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/internal/workspace"
 )
 
 // Action is what a reviewer can do with a needs_review run (§3.2 edges).

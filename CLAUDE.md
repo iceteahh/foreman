@@ -1,4 +1,4 @@
-# harness-loop-platform-go
+# foreman
 
 Go harness that runs autonomous agent tasks by spawning Claude Code headless (`claude -p`).
 Design: `claude-p-agent-harness-design.md`. Plan: `IMPLEMENTATION_PLAN.md`. Verified CLI behaviour: `docs/cli-contract.md`.

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/review"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/review"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // report builds a report from "id:ok" pairs ("a:1 b:0").

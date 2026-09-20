@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/budget"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/deadletter"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/queue"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/runner"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/budget"
+	"github.com/100xteam-ai/foreman/internal/deadletter"
+	"github.com/100xteam-ai/foreman/internal/queue"
+	"github.com/100xteam-ai/foreman/internal/runner"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // fakePager captures pages so the chaos test can assert one fired.

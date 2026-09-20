@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/queue"
-	storesqlite "github.com/100xteam-ai/harness-loop-platform-go/internal/store/sqlite"
+	"github.com/100xteam-ai/foreman/internal/queue"
+	storesqlite "github.com/100xteam-ai/foreman/internal/store/sqlite"
 )
 
 func open(t *testing.T) (*Queue, *time.Time) {

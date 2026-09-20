@@ -15,10 +15,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/audit"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/events"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/session"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/audit"
+	"github.com/100xteam-ai/foreman/internal/events"
+	"github.com/100xteam-ai/foreman/internal/session"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // KillReason says why the runner terminated the process group.

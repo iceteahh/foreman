@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/container"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/events"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/container"
+	"github.com/100xteam-ai/foreman/internal/events"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // fakeDocker stands in for the docker CLI. Invocations are recorded under

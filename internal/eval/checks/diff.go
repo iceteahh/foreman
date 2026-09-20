@@ -8,7 +8,7 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/workspace"
+	"github.com/100xteam-ai/foreman/internal/workspace"
 )
 
 // DiffScope: every changed file must match one of acceptance.diff_scope.

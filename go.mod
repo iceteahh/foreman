@@ -1,4 +1,4 @@
-module github.com/100xteam-ai/harness-loop-platform-go
+module github.com/100xteam-ai/foreman
 
 go 1.27.1
 

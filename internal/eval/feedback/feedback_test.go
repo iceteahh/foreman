@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/checks"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/judge"
+	"github.com/100xteam-ai/foreman/internal/eval/checks"
+	"github.com/100xteam-ai/foreman/internal/eval/judge"
 )
 
 func TestRender(t *testing.T) {

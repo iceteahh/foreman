@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/templates"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/templates"
 )
 
 // Subtask is one unit of the planner's decomposition. The schema lives in

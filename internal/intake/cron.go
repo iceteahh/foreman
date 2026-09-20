@@ -8,8 +8,8 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/config"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/config"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // Cron submits the tasks declared under `cron:` in harness.yaml.

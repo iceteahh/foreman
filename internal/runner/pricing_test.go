@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/events"
+	"github.com/100xteam-ai/foreman/internal/events"
 )
 
 func loadResult(t *testing.T, name string) *events.ResultEvent {

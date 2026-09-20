@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 func run(status task.RunStatus, mod func(*task.Run)) *task.Run {

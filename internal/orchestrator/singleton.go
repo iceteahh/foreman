@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/store"
+	"github.com/100xteam-ai/foreman/internal/store"
 )
 
 // Lease names for the periodic jobs that must not run twice (plan Step 22).

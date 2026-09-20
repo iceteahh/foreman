@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/container"
+	"github.com/100xteam-ai/foreman/internal/container"
 )
 
 // DockerLauncher runs `claude -p` inside the pinned worker image: one

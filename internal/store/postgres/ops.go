@@ -8,9 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/budget"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/deadletter"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/store"
+	"github.com/100xteam-ai/foreman/internal/budget"
+	"github.com/100xteam-ai/foreman/internal/deadletter"
+	"github.com/100xteam-ai/foreman/internal/store"
 )
 
 // AddSpend implements budget.Store: upsert (key, day) and return the new

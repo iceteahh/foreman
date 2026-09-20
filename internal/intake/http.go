@@ -17,13 +17,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/audit"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/budget"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/queue"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/review"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/store"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/templates"
+	"github.com/100xteam-ai/foreman/internal/audit"
+	"github.com/100xteam-ai/foreman/internal/budget"
+	"github.com/100xteam-ai/foreman/internal/queue"
+	"github.com/100xteam-ai/foreman/internal/review"
+	"github.com/100xteam-ai/foreman/internal/store"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/templates"
 )
 
 // Submitter is implemented by orchestrator.Submitter.

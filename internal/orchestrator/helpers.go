@@ -1,11 +1,11 @@
 package orchestrator
 
 import (
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/deliver"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/checks"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/judge"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/workspace"
+	"github.com/100xteam-ai/foreman/internal/deliver"
+	"github.com/100xteam-ai/foreman/internal/eval/checks"
+	"github.com/100xteam-ai/foreman/internal/eval/judge"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/internal/workspace"
 )
 
 func deliverInput(et *task.Task, r *task.Run, ws workspace.Workspace, rep checks.Report) deliver.Input {

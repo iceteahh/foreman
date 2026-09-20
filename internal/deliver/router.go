@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // ByKind routes each task kind to the adapter that matches its deliverable: a

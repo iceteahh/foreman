@@ -16,7 +16,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 //go:embed */policy.json */acceptance.json */prompt.md.tmpl */phases/*/phase.json */phases/*/prompt.md.tmpl */child/task.json */child/prompt.md.tmpl

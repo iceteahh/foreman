@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/budget"
+	"github.com/100xteam-ai/foreman/internal/budget"
 )
 
 func TestBudgetSpendUpsert(t *testing.T) {

@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/checks"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/judge"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/eval/checks"
+	"github.com/100xteam-ai/foreman/internal/eval/judge"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // MaxEvidence bounds each check's evidence block in the prompt.

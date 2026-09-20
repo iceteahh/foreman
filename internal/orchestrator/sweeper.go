@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/session"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/store"
+	"github.com/100xteam-ai/foreman/internal/session"
+	"github.com/100xteam-ai/foreman/internal/store"
 )
 
 // SessionSweeper enforces retention.sessions_days (design §4.4 lifetime): the

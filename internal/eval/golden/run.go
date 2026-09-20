@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // Executor runs one prepared task spec through the real pipeline and reports

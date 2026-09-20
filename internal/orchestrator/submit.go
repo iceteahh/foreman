@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/queue"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/session"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/store"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/templates"
+	"github.com/100xteam-ai/foreman/internal/queue"
+	"github.com/100xteam-ai/foreman/internal/session"
+	"github.com/100xteam-ai/foreman/internal/store"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/templates"
 )
 
 // Submitter turns a Spec into a stored task, its first run, and a queue job.

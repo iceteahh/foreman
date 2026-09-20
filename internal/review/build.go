@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/checks"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/store"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/workspace"
+	"github.com/100xteam-ai/foreman/internal/eval/checks"
+	"github.com/100xteam-ai/foreman/internal/store"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/internal/workspace"
 )
 
 // Build assembles a Request from stored state. capture may be nil (after the

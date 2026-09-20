@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/checks"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/feedback"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/judge"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/eval/checks"
+	"github.com/100xteam-ai/foreman/internal/eval/feedback"
+	"github.com/100xteam-ai/foreman/internal/eval/judge"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // Kind is the decision.

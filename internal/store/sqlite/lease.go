@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/store"
+	"github.com/100xteam-ai/foreman/internal/store"
 )
 
 // AcquireLease implements store.Leases: one row per named singleton job, taken

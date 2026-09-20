@@ -11,14 +11,14 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/audit"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/container"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/egress"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/k8s"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/obs"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/runner"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/session"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/audit"
+	"github.com/100xteam-ai/foreman/internal/container"
+	"github.com/100xteam-ai/foreman/internal/egress"
+	"github.com/100xteam-ai/foreman/internal/k8s"
+	"github.com/100xteam-ai/foreman/internal/obs"
+	"github.com/100xteam-ai/foreman/internal/runner"
+	"github.com/100xteam-ai/foreman/internal/session"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // Config is the whole harness.yaml.

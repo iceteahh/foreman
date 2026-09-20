@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/config"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/egress"
+	"github.com/100xteam-ai/foreman/internal/config"
+	"github.com/100xteam-ai/foreman/internal/egress"
 )
 
 // cmdEgress runs the worker egress allowlist proxy (design §4.1). Workers sit

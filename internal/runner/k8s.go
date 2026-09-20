@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/k8s"
+	"github.com/100xteam-ai/foreman/internal/k8s"
 )
 
 // K8sLauncher runs `claude -p` as a Kubernetes Job: one Job per run, on the

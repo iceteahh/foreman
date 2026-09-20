@@ -13,8 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/audit"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/deadletter"
+	"github.com/100xteam-ai/foreman/internal/audit"
+	"github.com/100xteam-ai/foreman/internal/deadletter"
 )
 
 // cmdReplay prints a human-readable timeline of a run's NDJSON event log

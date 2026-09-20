@@ -7,7 +7,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/checks"
+	"github.com/100xteam-ai/foreman/internal/eval/checks"
 )
 
 var promptTmpl = template.Must(template.New("judge").Option("missingkey=error").Parse(string(mustRead("prompt.md.tmpl"))))

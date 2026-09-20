@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/budget"
+	"github.com/100xteam-ai/foreman/internal/budget"
 )
 
 // AddSpend implements budget.Store: upsert (key, day) and return the new total.

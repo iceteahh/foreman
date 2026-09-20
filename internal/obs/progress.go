@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/events"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/runner"
+	"github.com/100xteam-ai/foreman/internal/events"
+	"github.com/100xteam-ai/foreman/internal/runner"
 )
 
 // Progress is the live per-run timeline of design §8: parsed stream events

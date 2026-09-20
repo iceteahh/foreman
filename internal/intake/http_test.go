@@ -15,15 +15,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/audit"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/config"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/queue"
-	queuesqlite "github.com/100xteam-ai/harness-loop-platform-go/internal/queue/sqlite"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/review"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/store"
-	storesqlite "github.com/100xteam-ai/harness-loop-platform-go/internal/store/sqlite"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/templates"
+	"github.com/100xteam-ai/foreman/internal/audit"
+	"github.com/100xteam-ai/foreman/internal/config"
+	"github.com/100xteam-ai/foreman/internal/queue"
+	queuesqlite "github.com/100xteam-ai/foreman/internal/queue/sqlite"
+	"github.com/100xteam-ai/foreman/internal/review"
+	"github.com/100xteam-ai/foreman/internal/store"
+	storesqlite "github.com/100xteam-ai/foreman/internal/store/sqlite"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/templates"
 )
 
 // fakeSubmit records specs and stores a task+run so GET endpoints work.

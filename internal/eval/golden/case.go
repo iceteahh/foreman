@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // Outcome is the coarse verdict a case expects, and what a finished run

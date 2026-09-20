@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/config"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/queue"
-	queuepostgres "github.com/100xteam-ai/harness-loop-platform-go/internal/queue/postgres"
-	queuesqlite "github.com/100xteam-ai/harness-loop-platform-go/internal/queue/sqlite"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/session"
-	storepostgres "github.com/100xteam-ai/harness-loop-platform-go/internal/store/postgres"
-	storesqlite "github.com/100xteam-ai/harness-loop-platform-go/internal/store/sqlite"
+	"github.com/100xteam-ai/foreman/internal/config"
+	"github.com/100xteam-ai/foreman/internal/queue"
+	queuepostgres "github.com/100xteam-ai/foreman/internal/queue/postgres"
+	queuesqlite "github.com/100xteam-ai/foreman/internal/queue/sqlite"
+	"github.com/100xteam-ai/foreman/internal/session"
+	storepostgres "github.com/100xteam-ai/foreman/internal/store/postgres"
+	storesqlite "github.com/100xteam-ai/foreman/internal/store/sqlite"
 )
 
 // openBackend opens the store and the queue for the configured driver. The

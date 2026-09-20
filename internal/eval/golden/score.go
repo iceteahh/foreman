@@ -8,8 +8,8 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/checks"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/eval/checks"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // Execution is what an Executor reports back about one case. Runs holds every

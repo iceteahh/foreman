@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/fanout"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/store"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/templates"
+	"github.com/100xteam-ai/foreman/internal/fanout"
+	"github.com/100xteam-ai/foreman/internal/store"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/templates"
 )
 
 // fanOut turns a passed planner run into one child task per subtask (design

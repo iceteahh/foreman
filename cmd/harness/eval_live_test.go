@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/golden"
+	"github.com/100xteam-ai/foreman/internal/eval/golden"
 )
 
 // TestLiveGoldenSlice runs a few golden cases through the real pipeline with

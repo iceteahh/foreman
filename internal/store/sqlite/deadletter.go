@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/deadletter"
+	"github.com/100xteam-ai/foreman/internal/deadletter"
 )
 
 // SaveEntry implements deadletter.Store (upsert keyed by run).

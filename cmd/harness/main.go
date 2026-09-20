@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/review"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/runner"
+	"github.com/100xteam-ai/foreman/internal/review"
+	"github.com/100xteam-ai/foreman/internal/runner"
 )
 
 const usage = `usage: harness <command> [flags]

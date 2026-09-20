@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/review"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/review"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // Override is a human review decision that contradicted the machine, together

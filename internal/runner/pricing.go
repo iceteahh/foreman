@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/events"
+	"github.com/100xteam-ai/foreman/internal/events"
 )
 
 // Price is USD per million tokens for one model.

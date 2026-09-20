@@ -8,7 +8,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 // ErrNotFound is returned when a task or run id is unknown.

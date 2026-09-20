@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
+	"github.com/100xteam-ai/foreman/internal/task"
 )
 
 func TestDecisionValidateAndRef(t *testing.T) {

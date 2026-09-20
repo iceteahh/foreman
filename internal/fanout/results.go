@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/templates"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/templates"
 )
 
 // Child pairs a fan-out child task with its newest run.

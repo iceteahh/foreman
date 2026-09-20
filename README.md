@@ -1,4 +1,4 @@
-# harness-loop-platform-go
+# foreman
 
 A production harness that runs autonomous agent tasks by spawning Claude Code headless
 (`claude -p`) as isolated worker subprocesses.

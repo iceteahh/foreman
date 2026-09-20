@@ -1,7 +1,7 @@
 # Implementation Plan — Agent Harness on `claude -p`
 
 Source design: [claude-p-agent-harness-design.md](claude-p-agent-harness-design.md) (Draft v1.1, §0 corrections applied 2026-09-13).
-Language: **Go** (repo is `harness-loop-platform-go`; the design's Node snippets are reference only).
+Language: **Go** (repo is `foreman`; the design's Node snippets are reference only).
 Verified against Claude Code CLI **2.1.243** on 2026-09-13. Session-management spike (Step 4 items 1, 2, 4) run the same day; results in [docs/cli-contract.md](docs/cli-contract.md), fixtures in [testdata/events/](testdata/events/).
 
 ---
@@ -235,7 +235,7 @@ Steps 1, 2, 3, 5, 6, 7, 8 were implemented and tested on 2026-09-13.
 
 | Step | State | Notes |
 |---|---|---|
-| 1 scaffold | done | Go 1.27.1 + golangci-lint 2.13 installed via Homebrew. Module `github.com/100xteam-ai/harness-loop-platform-go`. `harness doctor` checks Go, git, pinned CLI, API key, GitHub token, webhook secret, data root. |
+| 1 scaffold | done | Go 1.27.1 + golangci-lint 2.13 installed via Homebrew. Module `github.com/100xteam-ai/foreman`. `harness doctor` checks Go, git, pinned CLI, API key, GitHub token, webhook secret, data root. |
 | 2 domain types | done | `internal/task`: Task/Run/Policy/Acceptance/Spec, ULID + UUIDv4 ids, exhaustive state-machine table test, round-trip tests against the design's §3 documents. |
 | 3 store | done | `internal/store/sqlite` (modernc, WAL, embedded migrations, `run_events` history). Illegal transitions rejected at the store boundary. |
 | 4 spike | partial | unchanged; see §0 / docs/cli-contract.md §4. |
@@ -278,7 +278,7 @@ S21 fan-out ─▶ S22 scaled topology   ══ M5
 
 ### Step 1 — Repo scaffold and toolchain — **done 2026-09-13**
 **Goal:** `make test` passes on an empty module.
-- Install Go (1.23+). `go mod init github.com/<org>/harness-loop-platform-go`.
+- Install Go (1.23+). `go mod init github.com/<org>/foreman`.
 - Layout:
   ```
   cmd/harness/           single binary: `harness serve | run-once | eval`

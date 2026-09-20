@@ -7,15 +7,15 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/deadletter"
+	"github.com/100xteam-ai/foreman/internal/deadletter"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/feedback"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/obs"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/queue"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/review"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/workspace"
-	"github.com/100xteam-ai/harness-loop-platform-go/templates"
+	"github.com/100xteam-ai/foreman/internal/eval/feedback"
+	"github.com/100xteam-ai/foreman/internal/obs"
+	"github.com/100xteam-ai/foreman/internal/queue"
+	"github.com/100xteam-ai/foreman/internal/review"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/internal/workspace"
+	"github.com/100xteam-ai/foreman/templates"
 )
 
 // retry creates attempt+1 of prev and enqueues it (plan Step 11). When the

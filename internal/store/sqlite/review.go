@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/review"
+	"github.com/100xteam-ai/foreman/internal/review"
 )
 
 // SavePost implements review.Store (upsert keyed by run).

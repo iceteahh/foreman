@@ -13,10 +13,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/eval/golden"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/runner"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/task"
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/workspace"
+	"github.com/100xteam-ai/foreman/internal/eval/golden"
+	"github.com/100xteam-ai/foreman/internal/runner"
+	"github.com/100xteam-ai/foreman/internal/task"
+	"github.com/100xteam-ai/foreman/internal/workspace"
 )
 
 const evalUsage = `usage: harness eval <subcommand> [flags]

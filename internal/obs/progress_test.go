@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/100xteam-ai/harness-loop-platform-go/internal/events"
+	"github.com/100xteam-ai/foreman/internal/events"
 )
 
 type fakeSink struct {
