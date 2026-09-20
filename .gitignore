@@ -1,7 +1,37 @@
+# Build output
 bin/
+
+# Local state (data_root)
+.harness/
 *.db
 *.db-wal
 *.db-shm
-.harness/
 coverage.out
+
+# Secrets: credentials, tokens, keys. .env.example is the tracked template.
 .env
+.env.*
+!.env.example
+.envrc
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*.kubeconfig
+kubeconfig
+credentials
+credentials.json
+*.credentials
+secrets.yaml
+secrets.yml
+*.secret.yaml
+*.secret.yml
+
+# Local overrides of checked-in config
+*.local.yaml
+*.local.yml
+*.local.json
+.claude/settings.local.json
