@@ -35,6 +35,15 @@ var Rubric = mustRead("rubric.json")
 // ScoreNames are the rubric's numeric fields.
 var ScoreNames = []string{"task_completion", "minimal_diff", "no_scope_creep", "code_quality"}
 
+// GatingScoreNames are the axes the router thresholds on: did the run do the
+// job, and is the work sound. minimal_diff and no_scope_creep describe the
+// shape of a diff rather than its correctness, so they are recorded and shown
+// to a reviewer but never demote a run on their own — gating on them sends
+// correct work to a human for tidying up (2026-09-21: a run scoring
+// task_completion 10, code_quality 9, verdict "pass" went to review on
+// no_scope_creep 5).
+var GatingScoreNames = []string{"task_completion", "code_quality"}
+
 // Spawner runs one CLI invocation. *runner.Runner implements it; tests fake it.
 type Spawner interface {
 	Run(ctx context.Context, t *task.Task, r *task.Run, sp runner.Spawn) (*runner.Result, error)
@@ -137,6 +146,29 @@ func (v *Verdict) MinScore() (int, bool) {
 		if first || s < min {
 			min, first = s, false
 		}
+	}
+	return min, true
+}
+
+// MinGatingScore is the lowest score among GatingScoreNames: the value the
+// router compares against the threshold. Axes the judge did not return are
+// skipped; ok is false when it returned none of them.
+func (v *Verdict) MinGatingScore() (int, bool) {
+	if v == nil || len(v.Scores) == 0 {
+		return 0, false
+	}
+	min, first := 0, true
+	for _, n := range GatingScoreNames {
+		s, ok := v.Scores[n]
+		if !ok {
+			continue
+		}
+		if first || s < min {
+			min, first = s, false
+		}
+	}
+	if first {
+		return 0, false
 	}
 	return min, true
 }

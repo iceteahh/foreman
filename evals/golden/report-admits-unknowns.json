@@ -3,7 +3,7 @@
   "kind": "report",
   "title": "Production traffic and cost report",
   "prompt": "Write a report covering: (1) what the price cache does, and (2) how many requests per second checkout-api served last month and what it cost to run. Use only what this repository contains.",
-  "policy": { "model": "haiku", "max_turns": 12, "max_cost_usd": 0.35, "max_retries": 0 },
+  "policy": { "model": "haiku", "max_turns": 15, "max_cost_usd": 0.4, "max_retries": 0 },
   "repo": { "dir": "fixtures/svc-logs", "ref": "main" },
   "expect": {
     "outcome": "pass",

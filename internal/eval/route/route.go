@@ -56,7 +56,7 @@ func (in Input) Threshold() int {
 //
 //	checks failed or judge fail/gamed → Retry while attempts remain, else DeadLetter
 //	phase requires human approval      → HumanReview
-//	judge uncertain or min score < threshold → HumanReview
+//	judge uncertain or min gating score < threshold → HumanReview
 //	otherwise                          → Deliver
 //
 // "Attempts remain" is run.attempt <= policy.max_retries: max_retries counts
@@ -94,7 +94,7 @@ func Decide(in Input) Decision {
 			}
 			return Decision{Kind: HumanReview, Reason: r}
 		}
-		if min, ok := in.Judge.MinScore(); ok && min < in.Threshold() {
+		if min, ok := in.Judge.MinGatingScore(); ok && min < in.Threshold() {
 			return Decision{Kind: HumanReview, Reason: fmt.Sprintf("judge min score %d below threshold %d", min, in.Threshold())}
 		}
 	}
@@ -105,7 +105,7 @@ func judgeNote(v *judge.Verdict) string {
 	if v == nil {
 		return " · judge skipped"
 	}
-	if min, ok := v.MinScore(); ok {
+	if min, ok := v.MinGatingScore(); ok {
 		return fmt.Sprintf(" · judge pass (min score %d)", min)
 	}
 	return " · judge pass"

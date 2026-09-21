@@ -215,3 +215,30 @@ func TestLoadRelativeConfigPathYieldsAbsoluteDataRoot(t *testing.T) {
 		}
 	}
 }
+
+// A data_root inside the repository the config lives in is refused: workspaces
+// are checked out under it and the CLI walks parents for CLAUDE.md and
+// .claude/, so every worker would inherit the harness's own instructions.
+func TestLoadRefusesDataRootInsideTheRepo(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(repo, "harness.yaml")
+	if err := os.WriteFile(path, []byte("data_root: .harness\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("want an error for a data_root inside the repo, got nil")
+	} else if !strings.Contains(err.Error(), "inside the repository") {
+		t.Fatalf("error does not name the problem: %v", err)
+	}
+
+	// A sibling directory outside the repo is fine.
+	if err := os.WriteFile(path, []byte("data_root: ../harness-data\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err != nil {
+		t.Fatalf("a data_root outside the repo must load: %v", err)
+	}
+}

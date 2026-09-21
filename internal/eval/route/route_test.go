@@ -135,3 +135,26 @@ func TestDecideDetails(t *testing.T) {
 		t.Errorf("%+v", d)
 	}
 }
+
+// A low minimal_diff or no_scope_creep describes the shape of a diff, not
+// whether the work is right: it is recorded but must not demote a run the
+// judge called correct. Observed 2026-09-21 on golden case
+// code-fix-honours-claude-md (task_completion 10, code_quality 9,
+// no_scope_creep 5, verdict pass) which went to human review.
+func TestAdvisoryAxesDoNotDemoteACorrectRun(t *testing.T) {
+	tk := &task.Task{Kind: task.KindCodeFix, Policy: task.Policy{Judge: task.JudgePolicy{Enabled: true}}}
+	v := &judge.Verdict{
+		Verdict: "pass", Reasoning: "why",
+		Scores: map[string]int{"task_completion": 10, "code_quality": 9, "no_scope_creep": 5, "minimal_diff": 6},
+	}
+	d := Decide(Input{Task: tk, Run: &task.Run{Attempt: 1}, Checks: report(false), Judge: v, DefaultThreshold: 7})
+	if d.Kind != Deliver {
+		t.Fatalf("want Deliver, got %v (%s)", d.Kind, d.Reason)
+	}
+
+	// A correctness axis below the threshold still routes to a human.
+	v.Scores["code_quality"] = 5
+	if d := Decide(Input{Task: tk, Run: &task.Run{Attempt: 1}, Checks: report(false), Judge: v, DefaultThreshold: 7}); d.Kind != HumanReview {
+		t.Fatalf("want HumanReview on a low code_quality, got %v (%s)", d.Kind, d.Reason)
+	}
+}

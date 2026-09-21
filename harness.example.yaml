@@ -1,7 +1,7 @@
 # Copy to harness.yaml. Every key is optional; defaults are in internal/config.
 server:
   addr: ":8080"
-data_root: .harness            # sqlite db, audit logs, session snapshots, workspaces.
+data_root: ../foreman-data     # sqlite db, audit logs, session snapshots, workspaces.
                               # Relative paths resolve against this file's directory. Point it outside the
                               # repo in a deployment: workspaces are checked out under it, and the CLI walks
                               # parents for CLAUDE.md, so every worker would inherit the harness's own.
@@ -93,7 +93,7 @@ audit:
 judge:
   default_threshold: 7          # min rubric score before a run goes to human review
   model: ""                     # "" = CLI default; e.g. haiku to keep judging cheap
-  max_turns: 5
+  max_turns: 12                 # 5 was too few: the judge hit its own turn cap and returned uncertain
   max_cost_usd: 0.25
   timeout_ms: 180000
   parallel: false               # run judge samples concurrently

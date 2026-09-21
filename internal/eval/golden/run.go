@@ -39,6 +39,12 @@ type Runner struct {
 	Tags []string
 	// KeepFixtures leaves the materialised origins on disk for debugging.
 	KeepFixtures bool
+	// Repeat runs each case this many times and scores the majority verdict
+	// (default 1). A worker is not a deterministic function: two runs of an
+	// unchanged harness on 2026-09-21 flipped 4 of 21 cases, so a single
+	// sample cannot distinguish a flaky case from a real regression. Cost
+	// scales with Repeat, and the cost cap still applies between samples.
+	Repeat int
 	// OnCase is called after each case is scored (progress output).
 	OnCase func(CaseResult)
 	Logger *slog.Logger
@@ -101,8 +107,7 @@ func (r *Runner) Run(ctx context.Context) (*Report, error) {
 			rep.Cases = append(rep.Cases, skipped(c, why))
 			continue
 		}
-		res := r.runCase(ctx, fixtures, c)
-		spent += res.CostUSD
+		res := r.runSamples(ctx, fixtures, c, &spent)
 		rep.Cases = append(rep.Cases, res)
 		if r.OnCase != nil {
 			r.OnCase(res)
@@ -111,6 +116,55 @@ func (r *Runner) Run(ctx context.Context) (*Report, error) {
 	rep.FinishedAt = r.now()
 	rep.Summarize()
 	return rep, nil
+}
+
+// runSamples runs one case Repeat times and reduces the samples to a single
+// result whose OK is the majority verdict. It stops early when the cost cap is
+// reached, so a partial sample set never silently becomes a full one: the
+// surviving samples are what Passes/Samples report. spent is updated as it
+// goes, because each sample costs money whether or not the case passes.
+func (r *Runner) runSamples(ctx context.Context, fixtures *Fixtures, c *Case, spent *float64) CaseResult {
+	n := r.Repeat
+	if n < 1 {
+		n = 1
+	}
+	first := r.runCase(ctx, fixtures, c)
+	*spent += first.CostUSD
+	if n == 1 {
+		return first
+	}
+	passes := 0
+	if first.OK {
+		passes++
+	}
+	worst, samples := first, 1
+	for i := 1; i < n; i++ {
+		if ctx.Err() != nil {
+			break
+		}
+		if _, capped := r.skipReason(c, *spent); capped {
+			break
+		}
+		s := r.runCase(ctx, fixtures, c)
+		*spent += s.CostUSD
+		samples++
+		if s.OK {
+			passes++
+		} else if worst.OK {
+			// Keep a failing sample's evidence: a majority-pass case still has
+			// to show why it failed the times it did.
+			reasons, cost, dur := worst.Reasons, worst.CostUSD, worst.DurationMS
+			worst = s
+			worst.Reasons = append(reasons, s.Reasons...)
+			worst.CostUSD, worst.DurationMS = cost, dur
+		}
+		worst.CostUSD += s.CostUSD
+		worst.DurationMS += s.DurationMS
+	}
+	out := worst
+	out.Samples, out.Passes = samples, passes
+	out.OK = passes*2 > samples
+	return out
 }
 
 // skipReason decides whether a case runs at all, and says why not.

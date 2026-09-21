@@ -451,3 +451,71 @@ func TestRunnerCleansUpFixtures(t *testing.T) {
 		t.Errorf("materialised fixtures left behind: %v", left)
 	}
 }
+
+// flakyExecutor fails the first n calls for a prompt, then succeeds.
+type flakyExecutor struct {
+	failFirst int
+	seen      int
+}
+
+func (f *flakyExecutor) Execute(_ context.Context, _ task.Spec) (*Execution, error) {
+	f.seen++
+	if f.seen <= f.failFirst {
+		return &Execution{Final: run(task.StatusDead, nil), Runs: []*task.Run{run(task.StatusDead, nil)}}, nil
+	}
+	return delivered(0.1), nil
+}
+
+// -repeat scores the majority verdict, so one flaky sample does not read as a
+// regression and one lucky sample does not read as a pass.
+func TestRepeatScoresTheMajorityVerdict(t *testing.T) {
+	requireGit(t)
+	for _, tc := range []struct {
+		name      string
+		failFirst int
+		repeat    int
+		wantOK    bool
+		wantPass  int
+	}{
+		{"one flake in three is still a pass", 1, 3, true, 2},
+		{"two failures in three is a failure", 2, 3, false, 1},
+		{"all three fail", 3, 3, false, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := runnerSuite(t, 1, nil)
+			ex := &flakyExecutor{failFirst: tc.failFirst}
+			r := &Runner{Suite: s, Executor: ex, WorkRoot: t.TempDir(), Repeat: tc.repeat, Logger: quiet()}
+			rep, err := r.Run(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := rep.Cases[0]
+			if got.OK != tc.wantOK || got.Samples != tc.repeat || got.Passes != tc.wantPass {
+				t.Fatalf("ok=%v samples=%d passes=%d, want ok=%v samples=%d passes=%d",
+					got.OK, got.Samples, got.Passes, tc.wantOK, tc.repeat, tc.wantPass)
+			}
+			if ex.seen != tc.repeat {
+				t.Errorf("executor ran %d times, want %d", ex.seen, tc.repeat)
+			}
+		})
+	}
+}
+
+// Repeat defaults to one sample and leaves Samples/Passes unset, so an
+// unsampled report looks exactly as it did before.
+func TestRepeatDefaultsToASingleSample(t *testing.T) {
+	requireGit(t)
+	s := runnerSuite(t, 1, nil)
+	ex := &flakyExecutor{}
+	r := &Runner{Suite: s, Executor: ex, WorkRoot: t.TempDir(), Logger: quiet()}
+	rep, err := r.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := rep.Cases[0]; got.Samples != 0 || got.Passes != 0 || !got.OK {
+		t.Fatalf("samples=%d passes=%d ok=%v", got.Samples, got.Passes, got.OK)
+	}
+	if ex.seen != 1 {
+		t.Errorf("executor ran %d times, want 1", ex.seen)
+	}
+}

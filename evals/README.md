@@ -21,6 +21,7 @@ evals/
 make golden-validate                 # free: every case parses and has its fixture
 bin/harness eval list evals/golden   # what the suite covers
 bin/harness eval run evals/golden -max-cost 8     # spends tokens
+bin/harness eval run evals/golden -repeat 3       # majority of 3 samples per case
 bin/harness eval gate -baseline evals/reports/baseline.json -report evals/reports/2026-09-16.json
 make live-golden                     # a few cases against the real CLI (a few cents)
 scripts/demo-m4.sh                   # the whole loop offline, no tokens
@@ -29,6 +30,22 @@ scripts/demo-m4.sh                   # the whole loop offline, no tokens
 `eval run` stops once `-max-cost` is spent and marks the report
 `budget_exhausted`. The gate refuses such a report: a partial pass rate can
 neither block nor bless a change.
+
+## A case is not a deterministic test
+
+Two full runs of an unchanged harness on 2026-09-21 (CLI 2.1.270, `haiku`)
+disagreed about **4 of 21 cases** — three of them `pass → fail`. A worker is a
+model, not a function, so one sample per case cannot tell a flaky case from a
+regression, and the gate's per-case rule reads normal variance as a new failure.
+
+`eval run -repeat N` runs each case N times and scores the **majority** verdict;
+the report then carries `samples` and `passes` per case. Cost scales with N, and
+the cost cap still applies between samples, so a capped run reports the samples
+it actually took. Until the baseline and the gated run are both sampled, treat a
+single-run per-case diff as a hint and the aggregate pass rate as the signal.
+
+The checked-in `reports/baseline.json` (2026-09-21, 16/21, judge agreement 88%)
+is a **single-sample** run and carries this variance.
 
 ## Writing a case
 
@@ -88,6 +105,11 @@ must clear the gate (`.github/workflows/golden.yml`):
   go green.
 
 Every other pull request runs only the free validation.
+
+The second rule assumes a case is deterministic, which the 2026-09-21 runs show
+it is not. Until both the baseline and the gated run use `-repeat`, expect that
+rule to fire on variance; read the named cases before believing a block, and do
+not relax the gate to make it quiet — sample the suite instead.
 
 ## Feeding human decisions back in
 

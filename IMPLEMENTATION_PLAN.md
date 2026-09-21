@@ -34,6 +34,44 @@ Local prerequisites: Go 1.27.1 and golangci-lint installed 2026-09-13 (Homebrew)
 
 ---
 
+## Status — golden suite priced and baselined 2026-09-21
+
+The suite ran end to end against the real CLI for the first time (2.1.270, `haiku`, `worker.mode: local`).
+`evals/reports/baseline.json` is the blessed reference: **16/21 (76%), $3.18, judge agreement 88%**.
+`evals/reports/2026-09-21-prefix.json` is the first run of the day (15/21, 82%), kept because the difference
+between the two is the evidence for the fixes below.
+
+Found by running it — all three were latent because nothing had ever run:
+
+- **`judge.max_turns: 5` was the shipped default, and it truncated the judge mid-evaluation.** The judge returned
+  `uncertain`, which routes a correct run to a human and reads as "the judge was unsure" rather than "the judge
+  never finished". Raised to 12 (`internal/config/config.go`, both yaml files); `code_review` went 1/4 → 4/4,
+  and judge agreement 82% → 88%.
+- **`data_root` was `.harness`, inside this repo.** Workspaces are checked out under it and the CLI walks parents
+  for `CLAUDE.md`/`.claude/`, so every worker would have inherited the harness's own instructions — invisibly, and
+  unreproducibly in CI. `config.Load` now refuses such a root; `harness.example.yaml` shipped the same value.
+- **Routing thresholded on the minimum of all four rubric axes.** `code-fix-honours-claude-md` scored
+  `task_completion` 10, `code_quality` 9, verdict `pass`, and went to human review on `no_scope_creep` 5.
+  `minimal_diff` and `no_scope_creep` describe the shape of a diff, not its correctness, so they are now advisory:
+  `judge.GatingScoreNames` and `Verdict.MinGatingScore` gate on the correctness axes only.
+
+Still open after the baseline:
+
+- **A golden case is not a deterministic test.** The two runs disagreed about 4 of 21 cases (3 `pass → fail`) with
+  nothing changed but the judge turn cap. `eval run -repeat N` now scores the majority of N samples per case, but
+  the checked-in baseline is single-sample, so the gate's per-case rule will fire on variance until a sampled
+  baseline replaces it. The gate defaults were deliberately **not** widened: a gate loose enough to be quiet is a
+  gate that is off.
+- **The judge uses one change-shaped rubric for every kind.** `minimal_diff` and `no_scope_creep` are vacuous for
+  `code_review`, `report` and `triage` — nothing changes, so they score a free 10 and only two axes carry signal.
+  No axis asks whether a review named the right file, which is how the judge passed a review that pointed at
+  `cmd/api/main.go` for a race in `internal/cache/cache.go`. A per-kind rubric is the next real change, and it
+  needs a sampled baseline first to be measurable.
+- The gate is verified but not wired: `eval gate` blocks correctly on a new failure, a missing case and a
+  `budget_exhausted` report, and exits 1. The nightly CI schedule in `.github/workflows/golden.yml` is unchanged.
+
+---
+
 ## Status — M5 fan-out and scaled topology built 2026-09-16 (M4 golden suite 2026-09-16)
 
 Steps 1–3, 5–22 are implemented and tested (`make test`, `make lint` green; 32 packages, race detector on).
@@ -447,12 +485,14 @@ S21 fan-out ─▶ S22 scaled topology   ══ M5
 - Rate-limit detection (429 in events/stderr) → exponential backoff + temporary global concurrency shed.
 - **Done when:** chaos test: fail a task 3× and observe DLQ + alert.
 
-### Step 19 — Golden suite (Layer 4) — **done 2026-09-16** (suite not yet run against the real CLI)
+### Step 19 — Golden suite (Layer 4) — **done 2026-09-16**, first priced run 2026-09-21
 **Goal:** `harness eval run evals/golden` produces a scored report.
 - 20–50 `evals/golden/*.json`: task + fixture repo (as a git bundle) + expected outcome (`pass|fail|needs_review`, expected files touched).
 - Runner executes them with the real pipeline (containers on), records pass rate, retry rate, avg turns/cost/duration, judge/human agreement.
 - Script to convert `review_decisions` overrides into new golden cases.
-- **Done when:** suite runs in CI nightly on a budget cap and writes `evals/reports/<date>.json`.
+- **Done when:** suite runs in CI nightly on a budget cap and writes `evals/reports/<date>.json`. The suite ran
+  end to end against CLI 2.1.270 on 2026-09-21 and wrote `evals/reports/2026-09-21.json`; the nightly CI schedule
+  is still not wired.
 
 ### Step 20 — Regression gate and task kinds 2 & 3 — **done 2026-09-16** (gate exercised offline, not yet in a paid CI run)
 - Gate: PRs touching `templates/`, `CLAUDE.md`, tool policies, or the pinned CLI/model must pass the golden suite with pass-rate drop ≤ configured delta.

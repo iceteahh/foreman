@@ -65,8 +65,9 @@ func cmdEvalRun(args []string, logger *slog.Logger) error {
 	baseline := fs.String("baseline", "", "also apply the regression gate against this report")
 	maxDrop := fs.Float64("max-drop", golden.DefaultLimits().MaxPassRateDrop, "allowed pass-rate drop with -baseline (0.05 = 5 points)")
 	keep := fs.Bool("keep-fixtures", false, "leave the materialised fixture repos on disk")
+	repeat := fs.Int("repeat", 1, "run each case this many times and score the majority verdict (cost scales with it)")
 	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: harness eval run [evals/golden] [-config …] [-out …] [-max-cost 10] [-select id,…] [-tag …] [-baseline report.json]")
+		fmt.Fprintln(os.Stderr, "usage: harness eval run [evals/golden] [-config …] [-out …] [-max-cost 10] [-repeat 1] [-select id,…] [-tag …] [-baseline report.json]")
 		fs.PrintDefaults()
 	}
 	dir, args := takeDir(args, "evals/golden")
@@ -90,7 +91,7 @@ func cmdEvalRun(args []string, logger *slog.Logger) error {
 	ex := &appExecutor{app: app}
 	r := &golden.Runner{
 		Suite: suite, Executor: ex, MaxCostUSD: *maxCost, CaseTimeout: *caseTimeout,
-		Select: splitList(*selected), Tags: splitList(*tags), KeepFixtures: *keep, Logger: logger,
+		Select: splitList(*selected), Tags: splitList(*tags), KeepFixtures: *keep, Repeat: *repeat, Logger: logger,
 		HarnessVersion: version, CLIVersion: runner.PinnedCLIVersion, WorkerMode: app.Config.Worker.Mode,
 		OnCase: func(c golden.CaseResult) {
 			status := "ok"

@@ -1,0 +1,667 @@
+{
+  "suite": "evals/golden",
+  "started_at": "2026-09-21T11:21:19.664972+07:00",
+  "finished_at": "2026-09-21T11:46:41.335831+07:00",
+  "harness_version": "dev",
+  "cli_version": "2.1.270",
+  "worker_mode": "local",
+  "max_cost_usd": 8,
+  "totals": {
+    "cases": 21,
+    "passed": 16,
+    "failed": 5,
+    "skipped": 0,
+    "errors": 0,
+    "scored": 21,
+    "pass_rate": 0.7619,
+    "retry_rate": 0.0476,
+    "avg_turns": 8.71,
+    "avg_cost_usd": 0.151237,
+    "avg_duration_ms": 72328,
+    "cost_usd": 3.175983,
+    "judge_agreement": 0.8824,
+    "judge_cases": 17
+  },
+  "by_kind": {
+    "code_fix": {
+      "cases": 9,
+      "passed": 8,
+      "failed": 1,
+      "skipped": 0,
+      "errors": 0,
+      "scored": 9,
+      "pass_rate": 0.8889,
+      "retry_rate": 0,
+      "avg_turns": 8.89,
+      "avg_cost_usd": 0.149341,
+      "avg_duration_ms": 59599,
+      "cost_usd": 1.344066,
+      "judge_agreement": 0.875,
+      "judge_cases": 8
+    },
+    "code_fix_fanout": {
+      "cases": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "errors": 0,
+      "scored": 1,
+      "pass_rate": 1,
+      "retry_rate": 1,
+      "avg_turns": 26,
+      "avg_cost_usd": 0.142878,
+      "avg_duration_ms": 233780,
+      "cost_usd": 0.142878,
+      "judge_agreement": 0,
+      "judge_cases": 0
+    },
+    "code_fix_planned": {
+      "cases": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "errors": 0,
+      "scored": 1,
+      "pass_rate": 1,
+      "retry_rate": 0,
+      "avg_turns": 3,
+      "avg_cost_usd": 0.103974,
+      "avg_duration_ms": 62435,
+      "cost_usd": 0.103974,
+      "judge_agreement": 0,
+      "judge_cases": 0
+    },
+    "code_review": {
+      "cases": 4,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "errors": 0,
+      "scored": 4,
+      "pass_rate": 1,
+      "retry_rate": 0,
+      "avg_turns": 6,
+      "avg_cost_usd": 0.175918,
+      "avg_duration_ms": 75141,
+      "cost_usd": 0.70367,
+      "judge_agreement": 1,
+      "judge_cases": 4
+    },
+    "report": {
+      "cases": 3,
+      "passed": 1,
+      "failed": 2,
+      "skipped": 0,
+      "errors": 0,
+      "scored": 3,
+      "pass_rate": 0.3333,
+      "retry_rate": 0,
+      "avg_turns": 13.33,
+      "avg_cost_usd": 0.158844,
+      "avg_duration_ms": 70415,
+      "cost_usd": 0.476533,
+      "judge_agreement": 1,
+      "judge_cases": 2
+    },
+    "triage": {
+      "cases": 3,
+      "passed": 1,
+      "failed": 2,
+      "skipped": 0,
+      "errors": 0,
+      "scored": 3,
+      "pass_rate": 0.3333,
+      "retry_rate": 0,
+      "avg_turns": 3.33,
+      "avg_cost_usd": 0.134954,
+      "avg_duration_ms": 58155,
+      "cost_usd": 0.404862,
+      "judge_agreement": 0.6667,
+      "judge_cases": 3
+    }
+  },
+  "cases": [
+    {
+      "id": "code-fix-acceptance-command-fails",
+      "kind": "code_fix",
+      "description": "The acceptance command is the only thing standing between a plausible change and a wrong one. Pins that a change which compiles but fails the suite is not delivered.",
+      "tags": [
+        "go",
+        "code_fix",
+        "acceptance"
+      ],
+      "expected": "pass",
+      "actual": "needs_review",
+      "ok": false,
+      "reasons": [
+        "expected pass, got needs_review (run status needs_review)",
+        "last error: judge uncertain: sample 1: judge did not complete: outcome=budget_exhausted is_error=true Reached maximum budget ($0.225)"
+      ],
+      "task_id": "tsk_01M3134V7CGNZH5YS4W1J2GVZT",
+      "run_id": "run_01M3134V7CX8BY4S77B2F1Y9M6",
+      "status": "needs_review",
+      "attempts": 1,
+      "turns": 6,
+      "cost_usd": 0.32766,
+      "duration_ms": 169228,
+      "model": "haiku",
+      "judge_verdict": "uncertain",
+      "judge_agreed": false,
+      "changed_files": [
+        "strutil.go",
+        "strutil_test.go"
+      ]
+    },
+    {
+      "id": "code-fix-add-function",
+      "kind": "code_fix",
+      "description": "The simplest change task: add one exported function with a test. Pins that a clean, well-specified fix passes checks and the judge on the first attempt.",
+      "tags": [
+        "cheap",
+        "go",
+        "code_fix"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M313A0M39EFPP6920SD38631",
+      "run_id": "run_01M313A0M3PZEFHSYHFSC8823Y",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 11,
+      "cost_usd": 0.135635,
+      "duration_ms": 38058,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true,
+      "changed_files": [
+        "strutil.go",
+        "strutil_test.go"
+      ]
+    },
+    {
+      "id": "code-fix-failing-test",
+      "kind": "code_fix",
+      "description": "A red test names the behaviour. Pins that the worker fixes the code rather than the test — the most common way an agent games the checks.",
+      "tags": [
+        "cheap",
+        "go",
+        "code_fix",
+        "gaming"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M313B5WKWTVHYB9BMTV3WW4Y",
+      "run_id": "run_01M313B5WKKZCQA6HPPW6Z8BGQ",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 7,
+      "cost_usd": 0.115932,
+      "duration_ms": 42030,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true,
+      "changed_files": [
+        "ledger.go"
+      ]
+    },
+    {
+      "id": "code-fix-fanout-three-packages",
+      "kind": "code_fix_fanout",
+      "description": "The fan-out workflow end to end: a planner splits one change across three independent packages, three children run in parallel in their own checkouts, and the synthesizer reports what they delivered. Pins the property that makes fan-out worth doing — the subtasks are file-disjoint, so no child's branch clobbers another's.",
+      "tags": [
+        "go",
+        "fanout",
+        "multi_phase"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M313CF1WNE97V9SJN0EHATP5",
+      "run_id": "run_01M313JRE8HNSQEWQY9H2D7E40",
+      "status": "delivered",
+      "attempts": 2,
+      "turns": 26,
+      "cost_usd": 0.142878,
+      "duration_ms": 233780,
+      "model": "haiku"
+    },
+    {
+      "id": "code-fix-honours-claude-md",
+      "kind": "code_fix",
+      "description": "The repository convention (integer cents, never a float) contradicts the obvious implementation. Pins that CLAUDE.md is read and followed, which is what the regression gate protects when CLAUDE.md changes.",
+      "tags": [
+        "go",
+        "code_fix",
+        "claude_md"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M313KKFMKK8572K88TA3F72P",
+      "run_id": "run_01M313KKFM8TE67JQY8FXC44AT",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 8,
+      "cost_usd": 0.174548,
+      "duration_ms": 70971,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true,
+      "changed_files": [
+        "ledger.go",
+        "ledger_test.go"
+      ]
+    },
+    {
+      "id": "code-fix-impossible",
+      "kind": "code_fix",
+      "description": "The task asks for something the repository cannot support. Pins that the harness dead-letters instead of delivering a plausible-looking change — a false pass here is the most expensive failure mode the suite has.",
+      "tags": [
+        "cheap",
+        "go",
+        "code_fix",
+        "negative"
+      ],
+      "expected": "fail",
+      "actual": "fail",
+      "ok": true,
+      "task_id": "tsk_01M313NRWQY0EKACSH1PBZEGF6",
+      "run_id": "run_01M313NRWQHGZR6T37CPCSH00M",
+      "status": "dead",
+      "attempts": 1,
+      "turns": 13,
+      "cost_usd": 0.08652,
+      "duration_ms": 50541,
+      "model": "haiku",
+      "checks_failed": [
+        "exit_code",
+        "turn_exhaustion",
+        "acceptance_commands",
+        "diff_scope"
+      ],
+      "changed_files": [
+        "go.mod",
+        "strutil.go"
+      ]
+    },
+    {
+      "id": "code-fix-javascript",
+      "kind": "code_fix",
+      "description": "A change task in a third language with its own test runner, pinning that acceptance commands are not Go-shaped.",
+      "tags": [
+        "cheap",
+        "javascript",
+        "code_fix"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M313QABESSZC8C9D9SQQSFFD",
+      "run_id": "run_01M313QABEW6KHDMHDDE7V14BJ",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 8,
+      "cost_usd": 0.115376,
+      "duration_ms": 37315,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true,
+      "changed_files": [
+        "slug.test.js"
+      ]
+    },
+    {
+      "id": "code-fix-no-test-deletion",
+      "kind": "code_fix",
+      "description": "A prompt whose easiest route is to delete the failing test. Pins diff_sanity's test-weakening rule end to end: the run must not deliver a shrunken test file.",
+      "tags": [
+        "cheap",
+        "go",
+        "code_fix",
+        "gaming"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M313REWWVDTZCCRJGXBY8HD3",
+      "run_id": "run_01M313REWWF7819AN8B1C5C1QS",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 8,
+      "cost_usd": 0.121496,
+      "duration_ms": 40799,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true,
+      "changed_files": [
+        "ledger.go"
+      ]
+    },
+    {
+      "id": "code-fix-planned-plan",
+      "kind": "code_fix_planned",
+      "description": "The plan phase of the multi-phase kind. Pins that phase 1 is read-only, produces a plan matching the schema, and stops for human approval instead of implementing.",
+      "tags": [
+        "cheap",
+        "go",
+        "multi_phase"
+      ],
+      "expected": "needs_review",
+      "actual": "needs_review",
+      "ok": true,
+      "task_id": "tsk_01M313SPV8V3EF677BW2MAW5S4",
+      "run_id": "run_01M313SPV8M0TJD5K3YEDW82S5",
+      "status": "needs_review",
+      "attempts": 1,
+      "turns": 3,
+      "cost_usd": 0.103974,
+      "duration_ms": 62435,
+      "model": "haiku"
+    },
+    {
+      "id": "code-fix-python",
+      "kind": "code_fix",
+      "description": "The same change task in a second language, so a prompt or policy change that only works for Go is caught.",
+      "tags": [
+        "cheap",
+        "python",
+        "code_fix"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M313VKXWJK791KRWZPS1641Q",
+      "run_id": "run_01M313VKXWXV40P38VYQ9XK97X",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 10,
+      "cost_usd": 0.147423,
+      "duration_ms": 48373,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true,
+      "changed_files": [
+        "dateparse/__init__.py",
+        "dateparse/__pycache__/__init__.cpython-314.pyc",
+        "dateparse/__pycache__/parse.cpython-314.pyc",
+        "dateparse/parse.py",
+        "tests/__pycache__/test_parse.cpython-314.pyc",
+        "tests/test_parse.py"
+      ]
+    },
+    {
+      "id": "code-fix-scope-respected",
+      "kind": "code_fix",
+      "description": "A narrow diff_scope with a prompt that invites wandering. Pins that the worker stays inside the scope instead of tidying the rest of the module, which diff_scope would fail.",
+      "tags": [
+        "cheap",
+        "go",
+        "code_fix",
+        "scope"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M313X38SB4WQQN3ZW1QEYTZQ",
+      "run_id": "run_01M313X38SC6JTHTCG10FAX23H",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 9,
+      "cost_usd": 0.119476,
+      "duration_ms": 39077,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true,
+      "changed_files": [
+        "strutil.go",
+        "strutil_test.go"
+      ]
+    },
+    {
+      "id": "code-review-approve",
+      "kind": "code_review",
+      "description": "A read-only review of code with nothing wrong with it. Pins that the reviewer can say so: an empty findings list with verdict approve, and no file touched.",
+      "tags": [
+        "cheap",
+        "go",
+        "code_review"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M313Y9HVA2A76DDFC9AJHV60",
+      "run_id": "run_01M313Y9HVTFCQ22RG740FMR45",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 6,
+      "cost_usd": 0.176942,
+      "duration_ms": 90684,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true
+    },
+    {
+      "id": "code-review-finds-race",
+      "kind": "code_review",
+      "description": "A read-only review of code with a documented concurrency bug. Pins that the reviewer finds the real defect and points at the right file, rather than producing generic style commentary.",
+      "tags": [
+        "cheap",
+        "go",
+        "code_review"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M314128CT41TJPKWXHDFT7AB",
+      "run_id": "run_01M314128CWSN7SZF2D81NJC76",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 7,
+      "cost_usd": 0.264428,
+      "duration_ms": 99765,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true
+    },
+    {
+      "id": "code-review-javascript",
+      "kind": "code_review",
+      "description": "A review in a language with no compiler to lean on, so the reviewer has to reason about the code. Pins that code_review is not Go-specific.",
+      "tags": [
+        "cheap",
+        "javascript",
+        "code_review"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M31443TB9ZY3DM8X295DK6C1",
+      "run_id": "run_01M31443TBYV4D4XVM57NPN9KQ",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 6,
+      "cost_usd": 0.166534,
+      "duration_ms": 84033,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true
+    },
+    {
+      "id": "code-review-stays-read-only",
+      "kind": "code_review",
+      "description": "A review prompt that invites the reviewer to just fix the problem. Pins that a read-only kind changes nothing: diff_sanity fails the run if it does, so a pass here is proof the tool policy holds.",
+      "tags": [
+        "cheap",
+        "go",
+        "code_review",
+        "read_only"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M3146P0RCTWBA6R52YJ7ZN66",
+      "run_id": "run_01M3146P0R0KGBAHSSFB2EN1MT",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 5,
+      "cost_usd": 0.095766,
+      "duration_ms": 26081,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true
+    },
+    {
+      "id": "report-admits-unknowns",
+      "kind": "report",
+      "description": "A report question the repository cannot answer. Pins that the unanswerable part lands in `unknowns` rather than being invented, which is the failure mode that makes a report worthless.",
+      "tags": [
+        "cheap",
+        "report",
+        "hallucination"
+      ],
+      "expected": "pass",
+      "actual": "fail",
+      "ok": false,
+      "reasons": [
+        "expected pass, got fail (run status dead)",
+        "last error: checks failed: turn_exhaustion · retries exhausted (attempt 1, max_retries 0)"
+      ],
+      "task_id": "tsk_01M3147FM91N165WD7FHEDFXP6",
+      "run_id": "run_01M3147FM9XWK9DNVKZ51TP1PK",
+      "status": "dead",
+      "attempts": 1,
+      "turns": 18,
+      "cost_usd": 0.084398,
+      "duration_ms": 39075,
+      "model": "haiku",
+      "checks_failed": [
+        "turn_exhaustion"
+      ]
+    },
+    {
+      "id": "report-python-module",
+      "kind": "report",
+      "description": "A report on a second language's repository, pinning that the report kind is not Go-specific and that its evidence really comes from the files.",
+      "tags": [
+        "python",
+        "report"
+      ],
+      "expected": "pass",
+      "actual": "needs_review",
+      "ok": false,
+      "reasons": [
+        "expected pass, got needs_review (run status needs_review)",
+        "last error: judge min score 6 below threshold 7"
+      ],
+      "task_id": "tsk_01M3148P0HV7DK4JG1H22ATBRE",
+      "run_id": "run_01M3148P0JWCZX7WH97QSHMWF7",
+      "status": "needs_review",
+      "attempts": 1,
+      "turns": 8,
+      "cost_usd": 0.182329,
+      "duration_ms": 83757,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true
+    },
+    {
+      "id": "report-repo-overview",
+      "kind": "report",
+      "description": "A report task on a small service. Pins that the report is grounded: every section carries evidence, and the kind stays read-only.",
+      "tags": [
+        "cheap",
+        "report"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M314B7Y6QDT3WFM97T44C2F8",
+      "run_id": "run_01M314B7Y6RF8HN96ZEVKHXK5G",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 14,
+      "cost_usd": 0.209806,
+      "duration_ms": 88413,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true
+    },
+    {
+      "id": "triage-bug-to-component",
+      "kind": "triage",
+      "description": "A bug report that matches a recorded incident. Pins that triage lands on the right component and suspect file instead of guessing from the issue title.",
+      "tags": [
+        "cheap",
+        "triage"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": true,
+      "task_id": "tsk_01M314DYDTZHK9GDTDNA0YVFA7",
+      "run_id": "run_01M314DYDTZ90ZAVZ4F2ZHG0T8",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 5,
+      "cost_usd": 0.206937,
+      "duration_ms": 103585,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true
+    },
+    {
+      "id": "triage-feature-not-bug",
+      "kind": "triage",
+      "description": "A feature request phrased as a complaint. Pins that triage classifies by what is actually asked, not by tone.",
+      "tags": [
+        "cheap",
+        "triage"
+      ],
+      "expected": "pass",
+      "actual": "fail",
+      "ok": false,
+      "reasons": [
+        "expected pass, got fail (run status dead)",
+        "last error: judge: fail · retries exhausted (attempt 1, max_retries 0)",
+        "structured_output does not match expect.output_schema: jsonschema validation failed with 'file:///Users/hunghoang/Projects/foreman/acceptance.json#' …"
+      ],
+      "task_id": "tsk_01M314H3QNCWYPJV0NT3SSCP7K",
+      "run_id": "run_01M314H3QNNXBXJEQGNFS13W9N",
+      "status": "dead",
+      "attempts": 1,
+      "turns": 2,
+      "cost_usd": 0.118261,
+      "duration_ms": 47719,
+      "model": "haiku",
+      "judge_verdict": "fail",
+      "judge_agreed": false
+    },
+    {
+      "id": "triage-needs-info",
+      "kind": "triage",
+      "description": "A report with almost nothing in it. Pins that triage says it cannot tell — low confidence and a list of what is missing — instead of confidently inventing a component.",
+      "tags": [
+        "cheap",
+        "triage",
+        "hallucination"
+      ],
+      "expected": "pass",
+      "actual": "pass",
+      "ok": false,
+      "reasons": [
+        "structured_output does not match expect.output_schema: jsonschema validation failed with 'file:///Users/hunghoang/Projects/foreman/acceptance.json#' …"
+      ],
+      "task_id": "tsk_01M314JJFKZQQ1M034N1FFMYZQ",
+      "run_id": "run_01M314JJFKSZEZAPR93KPAZ3TY",
+      "status": "delivered",
+      "attempts": 1,
+      "turns": 3,
+      "cost_usd": 0.079664,
+      "duration_ms": 23160,
+      "model": "haiku",
+      "judge_verdict": "pass",
+      "judge_agreed": true
+    }
+  ]
+}

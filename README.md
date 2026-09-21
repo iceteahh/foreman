@@ -232,6 +232,14 @@ Tests that cost something or need infrastructure are build-tagged: `live` spends
 against fixtures in `testdata/events/`, captured from the pinned CLI — replay a fixture instead
 of spending tokens.
 
+`doctor` fails when the host `claude` drifts from the pinned version. Rather than downgrade the
+CLI you use interactively, install the pinned one beside it and point the worker at that copy:
+
+```bash
+npm install --prefix ~/.local/share/foreman/cli-<version> @anthropic-ai/claude-code@<version>
+# harness.yaml: worker.claude_bin: ~/.local/share/foreman/cli-<version>/node_modules/.bin/claude
+```
+
 ### Layout
 
 ```
@@ -266,5 +274,7 @@ scripts/demo-m*.sh  end-to-end demos, offline by default
 - `--session-id` XOR `--resume`, unless `--fork-session`; session ids are never reused.
 - Kill the worker's process group, not just the pid.
 - Fan-out children must be file-disjoint, or `fanout.Decode` refuses the plan.
+- `data_root` lives outside this repo; `config.Load` refuses a root inside it, because the CLI would
+  otherwise walk up and feed the harness's own `CLAUDE.md` to every worker.
 
 The full list is in [CLAUDE.md](CLAUDE.md).

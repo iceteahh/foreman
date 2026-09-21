@@ -23,7 +23,7 @@ Design: `claude-p-agent-harness-design.md`. Plan: `IMPLEMENTATION_PLAN.md`. Veri
 - `bin/harness tree <task_id>` prints a fan-out parent, its children and every run as one tree
 - `bin/harness requeue -list` shows the dead-letter queue; `requeue <run_id> [-note …] [-process]` retries with a fresh attempt counter
 - `bin/harness budget` shows today's spend against the daily ceilings; `bin/harness egress` runs the worker allowlist proxy
-- `bin/harness eval run evals/golden [-max-cost 8] [-tag cheap]` runs the golden suite (Layer 4, spends tokens);
+- `bin/harness eval run evals/golden [-max-cost 8] [-repeat N] [-tag cheap]` runs the golden suite (Layer 4, spends tokens);
   `eval gate -baseline … -report …` is the regression gate, `eval list` and `make golden-validate` are free,
   `eval import-reviews` turns human overrides into case skeletons
 - `scripts/demo-m1.sh` (code_fix, offline or `REAL=1`), `scripts/demo-m2.sh` (plan → approve → implement), `scripts/demo-m3.sh` (dead letter → page → replay → requeue; `DOCKER=1` for a containerised worker behind the egress allowlist),
@@ -82,6 +82,9 @@ Fixtures in `testdata/events/` were captured from CLI 2.1.243 (2.1.270 for the t
 - SQLite timestamps use the fixed-width `sqlTime`, never `time.RFC3339Nano`: these columns are compared as TEXT and
   a trimmed fraction sorts wrong (`…53.000327Z` > `…53.000327852Z`), which makes a just-enqueued job invisible.
 - A golden case id is the gate's join key: renaming one reads as deleting a case and adding another.
+- A golden case is not a deterministic test: two runs of an unchanged harness on 2026-09-21 disagreed about 4 of
+  21 cases. Score the majority of several samples (`eval run -repeat N`) before reading a single per-case
+  pass → fail as a regression, and never widen the gate to silence the noise — that turns the suite off quietly.
 - A golden report that stopped on its cost cap never gates a change; a case the suite skipped is never scored.
 - A fan-out child is its own task (`parent_id` + the parent's `children`, written in one transaction), with its own
   workspace, runs, retries and delivery. Subtasks are file-disjoint: two children claiming one file produce branches
@@ -106,4 +109,8 @@ Fixtures in `testdata/events/` were captured from CLI 2.1.243 (2.1.270 for the t
   the common case that used to leave it relative, since `filepath.Dir("harness.yaml")` is `.`.
 - Keep `data_root` outside the repo the harness itself lives in. Workspaces are checked out under it, and the CLI
   walks parent directories for `CLAUDE.md` and `.claude/`, so a root inside the repo silently feeds the harness's
-  own instructions to every worker.
+  own instructions to every worker. `config.Load` refuses such a root (2026-09-21): nothing else fails, so the
+  runs are just quietly wrong.
+- `judge.max_turns` bounds the judge's own run, not the worker's. Too low and the judge never reaches its verdict:
+  it returns `uncertain`, which routes a good run to a human and reads as "the judge was unsure" rather than
+  "the judge never finished". The default is 12 (5 truncated real `code_review` judgements, 2026-09-21).

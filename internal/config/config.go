@@ -328,7 +328,7 @@ func Default() Config {
 				NodeSelector: map[string]string{"harness.io/pool": "workers"}}},
 		Database: Database{Driver: "sqlite", DSNEnv: "HARNESS_POSTGRES_DSN"},
 		Session:  Session{Store: "local", AccessKeyEnv: "AWS_ACCESS_KEY_ID", SecretKeyEnv: "AWS_SECRET_ACCESS_KEY"}, //nolint:gosec // env var names, not secrets
-		Judge:    Judge{DefaultThreshold: 7, MaxTurns: 5, MaxCostUSD: 0.25, TimeoutMS: 180000},
+		Judge:    Judge{DefaultThreshold: 7, MaxTurns: 12, MaxCostUSD: 0.25, TimeoutMS: 180000},
 		Egress:   Egress{Addr: ":3128"},
 		Observability: Observability{Progress: "log", MetricIntervalMS: 30000, TraceSampleRatio: 1,
 			ProgressIntervalMS: 15000, PrometheusAddr: ":9464", Environment: "local"},
@@ -370,6 +370,11 @@ func Load(path string) (Config, error) {
 			return c, fmt.Errorf("resolve config dir %s: %w", path, err)
 		}
 		c.DataRoot = filepath.Join(base, c.DataRoot)
+	}
+	if base, err := filepath.Abs(filepath.Dir(path)); err == nil {
+		if repo, inside := repoHolding(base, c.DataRoot); inside {
+			return c, fmt.Errorf("data_root %s is inside the repository %s: workspaces are checked out under it and the CLI walks parent directories for CLAUDE.md and .claude/, so every worker would inherit this repository's own instructions; move it outside the repo (e.g. ../foreman-data)", c.DataRoot, repo)
+		}
 	}
 	return c, c.Validate()
 }
@@ -671,4 +676,29 @@ func (c Config) WorkerEnv() []string {
 		}
 	}
 	return out
+}
+
+// repoHolding reports the git repository containing dir, and whether dataRoot
+// lies inside it. Workspaces are checked out under data_root and the CLI walks
+// parent directories for CLAUDE.md and .claude/, so a root inside the repo the
+// harness itself lives in silently feeds the harness's own instructions to
+// every worker. Nothing fails; the runs are just quietly wrong.
+func repoHolding(dir, dataRoot string) (string, bool) {
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			rel, err := filepath.Rel(dir, dataRoot)
+			if err != nil {
+				return "", false
+			}
+			if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return "", false
+			}
+			return dir, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		dir = parent
+	}
 }

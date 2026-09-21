@@ -1,7 +1,7 @@
 # Copy to harness.yaml. Every key is optional; defaults are in internal/config.
 server:
   addr: ":8080"
-data_root: .harness            # sqlite db, audit logs, session snapshots, workspaces
+data_root: ../foreman-data          # sqlite db, audit logs, session snapshots, workspaces
 database:
   driver: sqlite                # sqlite (single node) | postgres (stateless replicas, plan Step 22)
   dsn_env: HARNESS_POSTGRES_DSN # the DSN carries a password, so the file holds the variable name
@@ -90,7 +90,7 @@ audit:
 judge:
   default_threshold: 7          # min rubric score before a run goes to human review
   model: ""                     # "" = CLI default; e.g. haiku to keep judging cheap
-  max_turns: 5
+  max_turns: 12                 # 5 was too few: the judge hit its own turn cap and returned uncertain
   max_cost_usd: 0.25
   timeout_ms: 180000
   parallel: false               # run judge samples concurrently

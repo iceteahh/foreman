@@ -52,7 +52,14 @@ type CaseResult struct {
 	// JudgeAgreed is set only when the case is judged and declares an
 	// outcome: it records whether Layer 2 and the human-blessed expectation
 	// pointed the same way (design §5.4 "judge/human agreement rate").
-	JudgeAgreed  *bool    `json:"judge_agreed,omitempty"`
+	JudgeAgreed *bool `json:"judge_agreed,omitempty"`
+	// Samples and Passes are set when the case ran more than once
+	// (`eval run -repeat N`): OK is then the majority verdict, and Passes/Samples
+	// is the observed pass rate for this one case. A worker is not a
+	// deterministic function, so one sample cannot tell a flaky case from a
+	// regression.
+	Samples      int      `json:"samples,omitempty"`
+	Passes       int      `json:"passes,omitempty"`
 	ChecksFailed []string `json:"checks_failed,omitempty"`
 	ChangedFiles []string `json:"changed_files,omitempty"`
 	Error        string   `json:"error,omitempty"`
