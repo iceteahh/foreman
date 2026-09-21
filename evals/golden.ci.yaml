@@ -1,0 +1,25 @@
+# The config the golden CI job runs the suite with (.github/workflows/golden.yml).
+#
+# Checked in rather than written inline by the workflow, and loaded by
+# TestShippedConfigsLoad, because a config the harness rejects otherwise only
+# fails inside a paid job — as "no such file or directory" from the gate step
+# reading a report the suite never got far enough to write.
+#
+# data_root is outside the checkout on purpose: workspaces are created under it
+# and the CLI walks parent directories for CLAUDE.md and .claude/, so a root
+# inside the repo feeds this repository's own instructions to every worker.
+# config.Load refuses such a root.
+data_root: /tmp/harness-golden
+concurrency: { global: 2 }
+worker:
+  mode: local
+  # The workflow installs the pinned version, so drift here is a real failure
+  # rather than a local-machine annoyance.
+  check_version: true
+# max_turns bounds the judge's own run, not the worker's. At 5 the judge stopped
+# before reaching a verdict on a code_review and returned uncertain, which
+# routes a correct run to a human (2026-09-21).
+judge: { model: haiku, max_turns: 12, max_cost_usd: 0.15 }
+observability: { progress: log, prometheus_addr: "" }
+review: { slack_channel: "" }
+retention: { workspaces: destroy_on_capture }

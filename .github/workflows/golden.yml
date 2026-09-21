@@ -105,22 +105,6 @@ jobs:
           npm install -g "@anthropic-ai/claude-code@$pinned"
           claude --version
 
-      - name: Write the suite config
-        run: |
-          cat > golden.yaml <<'CFG'
-          data_root: .harness-golden
-          concurrency: { global: 2 }
-          worker:
-            mode: local
-            # The workflow installs the pinned version above, so drift here is
-            # a real failure rather than a local-machine annoyance.
-            check_version: true
-          judge: { model: haiku, max_turns: 5, max_cost_usd: 0.15 }
-          observability: { progress: log, prometheus_addr: "" }
-          review: { slack_channel: "" }
-          retention: { workspaces: destroy_on_capture }
-          CFG
-
       - name: Run the golden suite
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -128,10 +112,18 @@ jobs:
         run: |
           set -euo pipefail
           go run ./cmd/harness eval run evals/golden \
-            -config golden.yaml \
+            -config evals/golden.ci.yaml \
             -max-cost "$MAX_COST_USD" \
             -out evals/reports/run.json \
             || echo "suite reported failures; the gate below decides"
+          # The line above swallows a case failure on purpose, but it also
+          # swallows a suite that never started. Without the report there is
+          # nothing to gate, and the gate's "no such file" is a confusing way
+          # to learn that the config was rejected.
+          test -f evals/reports/run.json || {
+            echo "::error::the suite wrote no report - it failed before running any case"
+            exit 1
+          }
 
       - uses: actions/upload-artifact@v4
         if: always()

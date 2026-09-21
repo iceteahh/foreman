@@ -159,6 +159,7 @@ func TestShippedConfigsLoad(t *testing.T) {
 		{path: "../../deploy/harness.compose.yaml", driver: "sqlite", worker: "docker", session: "local"},
 		{path: "../../deploy/harness.k8s.yaml", driver: "postgres", worker: "k8s", session: "s3"},
 		{path: "../../harness.example.yaml", driver: "sqlite", worker: "local", session: "local"},
+		{path: "../../evals/golden.ci.yaml", driver: "sqlite", worker: "local", session: "local"},
 	}
 	for _, tc := range cases {
 		t.Run(filepath.Base(tc.path), func(t *testing.T) {
