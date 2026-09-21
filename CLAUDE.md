@@ -74,6 +74,10 @@ Fixtures in `testdata/events/` were captured from CLI 2.1.243 (2.1.270 for the t
   `deadletter.Store`/`Sink`/`Pager`, `obs.ProgressSink`, `golden.Executor`).
 - Every step adds fixtures under `testdata/`; token-spending tests are `//go:build live`, daemon tests
   `//go:build docker`, database tests `//go:build postgres`.
+- `workspace.Provision` reclaims a checkout it finds at the run's own path rather than refusing it. The path is
+  keyed by run id and the queue lease admits one worker at a time, so a leftover is this run's: a job-level retry
+  after a successful clone would otherwise spend every remaining attempt on "already exists" and bury the error
+  that actually stopped the run.
 - Each attempt is its own `Run` (`attempt` counts within a phase, `retry_of` links the chain); the task's `session_id` is the resume pointer. Retry = `continue` when a snapshot exists, else cold `new` with a fresh UUID.
 - The judge never sees the worker transcript; a judge failure is `uncertain` (→ human review), never `pass`. `policy.max_retries` counts retries after the first attempt.
 - `Policy.Merge`/`Acceptance.Merge` deep-copy: never `json.Unmarshal` an override into a struct copy that shares slices with the base.

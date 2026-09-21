@@ -91,8 +91,16 @@ func (l *Local) Provision(ctx context.Context, t *task.Task, r *task.Run) (Works
 		return nil, fmt.Errorf("workspace type %q unsupported", t.Workspace.Type)
 	}
 	dir := filepath.Join(l.Root, r.ID)
+	// A leftover directory is this run's own: the path is keyed by run id, and
+	// the queue lease means only one worker holds a run at a time. It is what
+	// a job-level retry finds after the clone succeeded and a later step
+	// failed — refusing here would spend every remaining job attempt on
+	// "already exists" and bury the error that actually stopped the run.
+	// Provisioning is defined as a fresh checkout, so take it back.
 	if _, err := os.Stat(dir); err == nil {
-		return nil, fmt.Errorf("workspace %s already exists", dir)
+		if err := os.RemoveAll(dir); err != nil {
+			return nil, fmt.Errorf("workspace %s exists and could not be reclaimed: %w", dir, err)
+		}
 	}
 	token := ""
 	if l.Tokens != nil {

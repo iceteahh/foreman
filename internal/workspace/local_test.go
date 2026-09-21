@@ -232,3 +232,41 @@ func TestNewLocalMakesRootAbsolute(t *testing.T) {
 		t.Fatalf("Root %q is not absolute", mgr.Root)
 	}
 }
+
+// A job-level retry provisions the same run id again, and finds the checkout
+// its predecessor left behind when the clone succeeded but a later step
+// failed. Refusing that spends every remaining job attempt on "already
+// exists" and buries the error that actually stopped the run — observed in
+// CI on 2026-09-21, where a missing worker credential surfaced as five
+// workspace collisions per case.
+func TestProvisionReclaimsAStaleWorkspaceForTheSameRun(t *testing.T) {
+	ctx := context.Background()
+	origin := NewBareRepo(t, map[string]string{"f": "x"})
+	mgr, _ := NewLocal(filepath.Join(t.TempDir(), "ws"))
+	tk := testTask(origin)
+	r := task.NewRun(tk, time.Now())
+
+	ws, err := mgr.Provision(ctx, tk, r)
+	if err != nil {
+		t.Fatalf("first provision: %v", err)
+	}
+	// Something the worker left behind must not survive into the retry.
+	stale := filepath.Join(ws.Path(), "leftover.txt")
+	if err := os.WriteFile(stale, []byte("from the failed attempt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	again, err := mgr.Provision(ctx, tk, r)
+	if err != nil {
+		t.Fatalf("retry provision: %v", err)
+	}
+	if again.Path() != ws.Path() {
+		t.Errorf("retry moved the workspace: %s -> %s", ws.Path(), again.Path())
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Error("the retry reused the old checkout instead of a fresh one")
+	}
+	if _, err := os.Stat(filepath.Join(again.Path(), "f")); err != nil {
+		t.Errorf("retry did not produce a usable checkout: %v", err)
+	}
+}
