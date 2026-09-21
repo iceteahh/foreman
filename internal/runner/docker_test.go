@@ -42,7 +42,17 @@ case "$1" in
     for a in "$@"; do [ "$prev" = "--signal" ] && sig="$a"; prev="$a"; done
     printf '%s\n' "$@" > "$REC/kill.$last.$sig"
     if [ -f "$REC/pid.$last" ]; then
-      kill -9 "$(cat "$REC/pid.$last")" 2>/dev/null
+      p=$(cat "$REC/pid.$last")
+      # Signal the container command's whole process group, the way the real
+      # runner does. Two reasons it cannot be "kill -9 $p": a test that tells
+      # TERM from KILL needs TERM to really be TERM, and $p is the shell
+      # running the fixture, not the sleep doing the waiting. Signalling the
+      # shell alone leaves that sleep holding the stdout pipe open, so the
+      # harness reads for 30s instead of meeting its deadline; signalling the
+      # children first instead races the shell spawning its next one.
+      # The group first (setsid gave the command its own), then the bare pid
+      # as the fallback for a platform without setsid.
+      kill -"$sig" "-$p" 2>/dev/null || kill -"$sig" "$p" 2>/dev/null
       exit 0
     fi
     echo "Error response from daemon: No such container: $last" >&2
@@ -76,7 +86,13 @@ for n in $envnames; do eval "v=\${$n:-__MISSING__}"; echo "$n=$v" >> "$REC/impor
 cmd="$entry"
 if [ -z "$cmd" ]; then cmd="$1"; shift; fi
 [ "$cmd" = claude ] && cmd="${FAKE_CLAUDE:-claude}"
-"$cmd" "$@" &
+# Run the container command in its own process group so a kill can take the
+# whole tree by negative pid, the way the real runner does. It matters because
+# dash does not exec the last command of a multi-command script the way bash
+# does: the recorded pid is then the fixture's shell and its sleep survives,
+# holding the stdout pipe open long after the deadline. (set -m cannot do this
+# here - a test process has no controlling tty, so job control stays off.)
+if command -v setsid >/dev/null 2>&1; then setsid "$cmd" "$@" & else "$cmd" "$@" & fi
 child=$!
 echo "$child" > "$REC/pid.$name"
 wait $child

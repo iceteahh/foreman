@@ -66,16 +66,23 @@ func TestPeriodicRunsOnOneReplicaOnly(t *testing.T) {
 		go func(p *Periodic) { defer wg.Done(); p.Run(ctx) }(p)
 	}
 	time.Sleep(120 * time.Millisecond)
+	// Snapshot before cancelling. Run releases its lease on the way out so a
+	// surviving replica picks the job up immediately rather than waiting out
+	// the TTL, and the sibling's select can take one more tick before it
+	// observes ctx.Done() — so it legitimately wins the freed lease during
+	// teardown. Exclusivity is a property of steady state, not of the handoff
+	// that shutdown is supposed to perform.
+	aRan, bRan := a.Load(), b.Load()
 	cancel()
 	wg.Wait()
 
-	total := a.Load() + b.Load()
+	total := aRan + bRan
 	if total == 0 {
 		t.Fatal("neither replica ran the job")
 	}
 	// Whoever wins the lease keeps it for the TTL: the work must not be split.
-	if a.Load() > 0 && b.Load() > 0 {
-		t.Fatalf("both replicas did the work: a=%d b=%d", a.Load(), b.Load())
+	if aRan > 0 && bRan > 0 {
+		t.Fatalf("both replicas did the work: a=%d b=%d", aRan, bRan)
 	}
 }
 
