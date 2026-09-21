@@ -55,9 +55,17 @@ jobs:
       - id: filter
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "sensitive=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
+          # Only the deliberate paid runs are sensitive by default. A push to
+          # main has already been gated as a pull request, so paying for the
+          # suite again on merge doubles the spend for no new signal -- and
+          # because this job queues rather than cancels, a run of commits bills
+          # for every one of them.
+          case "${{ github.event_name }}" in
+            schedule|workflow_dispatch)
+              echo "sensitive=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            push)
+              echo "sensitive=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
           base=$(git merge-base origin/${{ github.base_ref }} HEAD)
           changed=$(git diff --name-only "$base" HEAD)
           echo "changed files:"; echo "$changed"
