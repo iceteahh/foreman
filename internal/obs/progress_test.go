@@ -53,10 +53,13 @@ func feed(t *testing.T, p *Progress, runID, fixture string) {
 	for {
 		ev, err := dec.Next()
 		if err != nil {
-			return
+			break
 		}
 		p.OnEvent(runID, ev)
 	}
+	// Publishing is asynchronous so a slow sink cannot stall the decode loop;
+	// the assertions below are about what the sink actually received.
+	p.Flush()
 }
 
 func TestProgressTracksToolsFilesAndCost(t *testing.T) {
@@ -135,6 +138,7 @@ func TestProgressRecordsEditedFilesAndCommands(t *testing.T) {
 		{"type":"tool_use","id":"t3","name":"Edit","input":{"file_path":"/ws/src/a.go"}}],"usage":{"input_tokens":10,"output_tokens":5}}}`
 	p2.OnEvent("run_03", events.Parse([]byte(edit), 1))
 	p2.OnEvent("run_03", events.Parse([]byte(`{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","total_cost_usd":0.01,"num_turns":1,"result":"done","permission_denials":[]}`), 2))
+	p2.Flush()
 	s = sink.last()
 	if len(s.Files) != 1 || s.Files[0] != "/ws/src/a.go" {
 		t.Errorf("files %v (duplicates must be collapsed)", s.Files)
@@ -156,11 +160,13 @@ func TestProgressThrottlesAndAlwaysPublishesTheResult(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		p.OnEvent("run_04", events.Parse(assistant, i+1))
 	}
+	p.Flush()
 	if n := sink.count(); n > 2 {
 		t.Errorf("published %d times despite the throttle", n)
 	}
 	before := sink.count()
 	p.OnEvent("run_04", events.Parse([]byte(`{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","num_turns":10,"total_cost_usd":0.02,"result":"ok","permission_denials":[]}`), 11))
+	p.Flush()
 	if sink.count() != before+1 {
 		t.Error("the result event must always publish")
 	}
@@ -175,6 +181,7 @@ func TestProgressSurfacesRateLimit(t *testing.T) {
 	sink := &fakeSink{}
 	p := &Progress{Sink: sink, Interval: time.Hour, Logger: quiet}
 	p.OnEvent("run_05", events.Parse([]byte(`{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","rateLimitType":"five_hour"}}`), 1))
+	p.Flush()
 	if sink.count() != 1 || !sink.last().RateLimited {
 		t.Fatalf("rate limit not published: %d %+v", sink.count(), sink.last())
 	}
@@ -185,6 +192,7 @@ func TestProgressSurfacesRateLimit(t *testing.T) {
 	sink2 := &fakeSink{}
 	p2 := &Progress{Sink: sink2, Interval: time.Hour, Logger: quiet}
 	p2.OnEvent("run_06", events.Parse([]byte(`{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","rateLimitType":"five_hour"}}`), 1))
+	p2.Flush()
 	if sink2.last().RateLimited {
 		t.Error("an allowed rate-limit window must not count as throttling")
 	}

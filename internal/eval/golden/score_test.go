@@ -452,10 +452,12 @@ func TestRunnerCleansUpFixtures(t *testing.T) {
 	}
 }
 
-// flakyExecutor fails the first n calls for a prompt, then succeeds.
+// flakyExecutor fails the first n calls for a prompt, then succeeds. costEach
+// overrides what a successful sample costs (the cost-cap tests need it).
 type flakyExecutor struct {
 	failFirst int
 	seen      int
+	costEach  float64
 }
 
 func (f *flakyExecutor) Execute(_ context.Context, _ task.Spec) (*Execution, error) {
@@ -463,7 +465,11 @@ func (f *flakyExecutor) Execute(_ context.Context, _ task.Spec) (*Execution, err
 	if f.seen <= f.failFirst {
 		return &Execution{Final: run(task.StatusDead, nil), Runs: []*task.Run{run(task.StatusDead, nil)}}, nil
 	}
-	return delivered(0.1), nil
+	cost := f.costEach
+	if cost == 0 {
+		cost = 0.1
+	}
+	return delivered(cost), nil
 }
 
 // -repeat scores the majority verdict, so one flaky sample does not read as a
@@ -498,6 +504,38 @@ func TestRepeatScoresTheMajorityVerdict(t *testing.T) {
 				t.Errorf("executor ran %d times, want %d", ex.seen, tc.repeat)
 			}
 		})
+	}
+}
+
+// A cost cap that cuts a case's samples short leaves a verdict decided by a
+// smaller majority than the suite was configured to need. The report must say
+// so, because a report that stopped on its cap can neither bless nor block.
+func TestCostCapMidCaseInvalidatesTheReport(t *testing.T) {
+	requireGit(t)
+	s := runnerSuite(t, 1, nil)
+	// Three samples at $0.60 each against a $1.00 cap: the third never runs.
+	ex := &flakyExecutor{costEach: 0.6}
+	r := &Runner{Suite: s, Executor: ex, WorkRoot: t.TempDir(), Repeat: 3, MaxCostUSD: 1.0, Logger: quiet()}
+	rep, err := r.Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ex.seen != 2 {
+		t.Fatalf("ran %d samples, want 2 before the cap", ex.seen)
+	}
+	got := rep.Cases[0]
+	if got.Samples != 2 {
+		t.Errorf("samples %d, want the 2 that actually ran", got.Samples)
+	}
+	if !rep.BudgetExhausted {
+		t.Error("a case whose sampling the cap cut short did not mark the report exhausted")
+	}
+	if !strings.Contains(strings.Join(got.Reasons, " "), "cost cap cut sampling short") {
+		t.Errorf("the case does not record the truncation: %v", got.Reasons)
+	}
+	// And such a report can never gate a change.
+	if g := Gate(nil, rep, DefaultLimits()); g.OK {
+		t.Error("the gate accepted a report whose sampling was truncated")
 	}
 }
 

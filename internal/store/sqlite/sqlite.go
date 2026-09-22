@@ -222,13 +222,16 @@ func (s *Store) UpdateTaskSession(ctx context.Context, taskID, sessionID string)
 	})
 }
 
-// UpdateTaskPhase records the current phase.
-func (s *Store) UpdateTaskPhase(ctx context.Context, taskID string, phase int) error {
+// UpdateTaskPhase compare-and-swaps the task's phase from → to.
+func (s *Store) UpdateTaskPhase(ctx context.Context, taskID string, from, to int) error {
 	return s.updateTask(ctx, taskID, func(t *task.Task) error {
-		if t.PhaseSpec(phase) == nil {
-			return fmt.Errorf("task %s has no phase %d", taskID, phase)
+		if t.Phase != from {
+			return fmt.Errorf("%w: task %s is in phase %d, not %d", store.ErrPhaseChanged, taskID, t.Phase, from)
 		}
-		t.Phase = phase
+		if t.PhaseSpec(to) == nil {
+			return fmt.Errorf("task %s has no phase %d", taskID, to)
+		}
+		t.Phase = to
 		return nil
 	})
 }

@@ -85,7 +85,7 @@ func (p *Pool) advancePhase(ctx context.Context, t *task.Task, prev *task.Run, c
 	if err != nil {
 		return nil, err
 	}
-	if err := p.Store.UpdateTaskPhase(ctx, t.ID, n); err != nil {
+	if err := p.Store.UpdateTaskPhase(ctx, t.ID, prev.Phase, n); err != nil {
 		return nil, err
 	}
 	return p.enqueueNext(ctx, t, prev, next, "next:")
@@ -123,6 +123,12 @@ func (p *Pool) Requeue(ctx context.Context, runID, by, note string) (*task.Run, 
 	}
 	if latest, err := p.Store.LatestRun(ctx, t.ID); err == nil && latest.ID != prev.ID && !latest.Status.Terminal() {
 		return nil, fmt.Errorf("task %s already has a live run %s (%s)", t.ID, latest.ID, latest.Status)
+	}
+	// The requeued run inherits the dead run's phase, so requeuing a run from
+	// a phase the task has already left would rewind it: the task would redo
+	// planning after its plan was approved, and the approval would be lost.
+	if prev.Phase != t.Phase {
+		return nil, fmt.Errorf("run %s is from phase %d but task %s is in phase %d: requeuing it would rewind the task", prev.ID, prev.Phase, t.ID, t.Phase)
 	}
 	rep := review.Build(t, prev, nil, "").Checks
 	fb := feedback.Render(prev.Attempt, rep, judgeFromRun(prev), note)

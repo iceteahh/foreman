@@ -190,13 +190,18 @@ func (p *Proxy) tunnel(client net.Conn, clientBuf *bufio.Reader, upstream net.Co
 	}
 	var wg sync.WaitGroup
 	wg.Add(2)
-	cp := func(dst net.Conn, src io.Reader) {
+	// The deadline has to sit on the connection being *read*: that is the call
+	// that blocks. Setting it on the write side leaves an idle tunnel parked
+	// forever, holding a worker's slot and a file descriptor with nothing
+	// flowing through it.
+	cp := func(dst net.Conn, src io.Reader, srcConn net.Conn) {
 		defer wg.Done()
 		buf := make([]byte, 32<<10)
 		for {
-			_ = dst.SetDeadline(time.Now().Add(idle))
+			_ = srcConn.SetReadDeadline(time.Now().Add(idle))
 			n, err := src.Read(buf)
 			if n > 0 {
+				_ = dst.SetWriteDeadline(time.Now().Add(idle))
 				if _, werr := dst.Write(buf[:n]); werr != nil {
 					break
 				}
@@ -209,8 +214,9 @@ func (p *Proxy) tunnel(client net.Conn, clientBuf *bufio.Reader, upstream net.Co
 			_ = tc.CloseWrite()
 		}
 	}
-	go cp(upstream, clientBuf)
-	go cp(client, upstream)
+	// clientBuf wraps client, so the client connection carries its deadline.
+	go cp(upstream, clientBuf, client)
+	go cp(client, upstream, upstream)
 	wg.Wait()
 	_ = client.Close()
 	_ = upstream.Close()

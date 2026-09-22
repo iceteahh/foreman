@@ -29,6 +29,10 @@ env:
   # run can neither block nor bless a change.
   MAX_COST_USD: ${{ github.event.inputs.max_cost_usd || '8' }}
   BASELINE: evals/reports/baseline.json
+  # The absolute floor, enforced alongside the baseline delta. Without it the
+  # gate only ever compares against yesterday, so losing one case of 21 (4.8%,
+  # inside a 5% delta) passes every night and the bar walks down for free.
+  MIN_PASS_RATE: "0.8"
 
 jobs:
   # Free on every PR: a malformed case must fail here, not in a paid run.
@@ -119,9 +123,15 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           set -euo pipefail
+          # A single sample disagrees with itself: two runs of an unchanged
+          # harness split 4 of 21 cases. The nightly scores the majority of
+          # three so a flake is not read as a regression.
+          repeat=1
+          if [ "${{ github.event_name }}" = "schedule" ]; then repeat=3; fi
           go run ./cmd/harness eval run evals/golden \
             -config evals/golden.ci.yaml \
             -max-cost "$MAX_COST_USD" \
+            -repeat "$repeat" \
             -out evals/reports/run.json \
             || echo "suite reported failures; the gate below decides"
           # The line above swallows a case failure on purpose, but it also
@@ -142,18 +152,34 @@ jobs:
       - name: Regression gate
         run: |
           set -euo pipefail
+          # Both bars, always: the delta catches a sudden regression, the floor
+          # stops a slow ratchet where each night is "only" one case worse than
+          # the last.
           if [ -f "$BASELINE" ]; then
-            go run ./cmd/harness eval gate -baseline "$BASELINE" -report evals/reports/run.json -max-drop 0.05
+            go run ./cmd/harness eval gate -baseline "$BASELINE" -report evals/reports/run.json \
+              -max-drop 0.05 -min-pass-rate "$MIN_PASS_RATE"
           else
             echo "no baseline at $BASELINE; enforcing the absolute floor only"
-            go run ./cmd/harness eval gate -report evals/reports/run.json -min-pass-rate 0.8
+            go run ./cmd/harness eval gate -report evals/reports/run.json -min-pass-rate "$MIN_PASS_RATE"
           fi
 
-      # The nightly run on main is what the next PR is measured against.
+      # The nightly run on main is what the next PR is measured against. A
+      # baseline may only ever move sideways or up: blessing a worse run makes
+      # tonight's regression tomorrow's target, which is exactly how the bar
+      # walks down one case at a time.
       - name: Publish the baseline
         if: github.event_name == 'schedule' && success()
         run: |
           set -euo pipefail
+          new=$(jq -r '.totals.pass_rate' evals/reports/run.json)
+          if [ -f "$BASELINE" ]; then
+            old=$(jq -r '.totals.pass_rate' "$BASELINE")
+            if awk "BEGIN{exit !($new < $old)}"; then
+              echo "::warning::pass rate $new is below the baseline $old; keeping the old baseline"
+              exit 0
+            fi
+          fi
+          echo "blessing a baseline at pass rate $new"
           cp evals/reports/run.json "$BASELINE"
           cp evals/reports/run.json "evals/reports/$(date -u +%F).json"
           git config user.name harness-bot

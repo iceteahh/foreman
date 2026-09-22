@@ -38,8 +38,8 @@ Design: `claude-p-agent-harness-design.md`. Plan: `IMPLEMENTATION_PLAN.md`. Veri
 `audit` (file + S3/MinIO sink, `replay`), `eval/checks` (Layer 1), `eval/judge` (Layer 2, ephemeral read-only
 `claude -p` with a rubric schema), `eval/route` (Layer 3, pure function) + `eval/feedback` (retry prompt),
 `review` (+ `review/slack`: Block Kit post, buttons, SLA escalation, progress thread, pager), `deliver`, `intake`,
-`orchestrator` (pool, retries via `--resume`, phases, fan-out/fan-in, `review.Decider`, session sweeper, requeue,
-`Periodic` singleton driver), `config`,
+`orchestrator` (pool, retries via `--resume`, phases, fan-out/fan-in, `review.Decider`, session sweeper,
+stranded-run sweeper (`stuck.go`), requeue, `Periodic` singleton driver), `config`,
 `container` (docker argv builder), `k8s` (Job manifest + kubectl argv builder), `egress` (CONNECT allowlist proxy),
 `budget` (daily ceilings + circuit breaker),
 `deadletter` (DLQ + paging), `obs` (OTel metrics, per-run traces, live progress),
@@ -75,7 +75,10 @@ Fixtures in `testdata/events/` were captured from CLI 2.1.243 (2.1.270 for the t
 - `--session-id` XOR `--resume`, unless `--fork-session`. Session ids are never reused.
 - Workers get an env allowlist only (`PATH`, `HOME`, `CLAUDE_CONFIG_DIR`, the git isolation trio above, `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`, plus `env:` from harness.yaml); never override `HOME`, and `env:` may not override any of the pinned names (`runner.pinnedEnv`).
 - Kill the worker's process group, not just the pid. Under docker, retry `docker kill` until the container is
-  confirmed: `docker run` creates it asynchronously, so one kill can be a silent no-op.
+  confirmed: `docker run` creates it asynchronously, so one kill can be a silent no-op. Under k8s, a
+  `kubectl delete` error is returned, never swallowed, and SIGKILL only reports success once the Job reads
+  NotFound within `kill_timeout`; an unconfirmed kill is `runner.ErrWorkerOrphaned`, which the pool pages on
+  (`harness_workers_orphaned_total`). A Job nobody confirmed dead keeps spending.
 - Secrets reach a container as `-e NAME` only (value from the docker client's environment), never in argv.
 - Git stays on the host in docker mode; only the worker and acceptance commands run in containers.
 - The task's resume pointer is the session id the harness minted (the snapshot is stored under it), never the
@@ -90,6 +93,13 @@ Fixtures in `testdata/events/` were captured from CLI 2.1.243 (2.1.270 for the t
   after a successful clone would otherwise spend every remaining attempt on "already exists" and bury the error
   that actually stopped the run.
 - Each attempt is its own `Run` (`attempt` counts within a phase, `retry_of` links the chain); the task's `session_id` is the resume pointer. Retry = `continue` when a snapshot exists, else cold `new` with a fresh UUID.
+- A lost lease (or three consecutive failed extends) cancels the run and leaves its status alone: the job
+  belongs to whoever reclaimed it, and driving it twice duplicates its branch and its delivery.
+  `orchestrator.StuckRunSweeper` is the only place that decides for an abandoned run, because it runs when
+  nothing holds the job at all; it walks `running`/`evaluating` back to `queued` and re-enqueues.
+- `UpdateTaskPhase` is a compare-and-swap like `AdvancePhase`, and `Requeue` refuses a dead run whose phase
+  differs from the task's: the replacement inherits the dead run's phase, so requeuing an abandoned phase
+  would redo planning after the plan was approved and throw the approval away.
 - The judge never sees the worker transcript; a judge failure is `uncertain` (→ human review), never `pass`. `policy.max_retries` counts retries after the first attempt.
 - `Policy.Merge`/`Acceptance.Merge` deep-copy: never `json.Unmarshal` an override into a struct copy that shares slices with the base.
 - Read-only kinds (`code_review`, `report`, `triage`) get no write tool and no unrestricted `Bash(git *)`; their
@@ -99,6 +109,9 @@ Fixtures in `testdata/events/` were captured from CLI 2.1.243 (2.1.270 for the t
 - A golden case id is the gate's join key: renaming one reads as deleting a case and adding another. It must
   match `^[a-z0-9][a-z0-9-]*$` and a fixture path must stay inside the case's directory after `filepath.Clean`:
   the id names the origin the suite creates and removes.
+- The nightly gate enforces `-min-pass-rate 0.8` alongside `-max-drop`, samples with `-repeat 3`, and blesses a
+  baseline only when the pass rate is at or above the previous one. A delta-only gate ratchets down: one case
+  of 21 is 4.8%, inside a 5% drop, every night forever.
 - A golden case is not a deterministic test: two runs of an unchanged harness on 2026-09-21 disagreed about 4 of
   21 cases. Score the majority of several samples (`eval run -repeat N`) before reading a single per-case
   pass → fail as a regression, and never widen the gate to silence the noise — that turns the suite off quietly.

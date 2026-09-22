@@ -118,10 +118,15 @@ func TestPhaseOutputLatestAndTerminalTasks(t *testing.T) {
 	if string(got.Output) != `{"plan":true}` {
 		t.Errorf("output %s", got.Output)
 	}
-	if err := s.UpdateTaskPhase(ctx, tk.ID, 2); err != nil {
+	if err := s.UpdateTaskPhase(ctx, tk.ID, 1, 2); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.UpdateTaskPhase(ctx, tk.ID, 3); err == nil {
+	// A compare-and-swap: a caller holding a stale view of the task (a
+	// requeued run from an earlier phase) must not rewind it.
+	if err := s.UpdateTaskPhase(ctx, tk.ID, 1, 2); !errors.Is(err, store.ErrPhaseChanged) {
+		t.Errorf("a stale from-phase was accepted: %v", err)
+	}
+	if err := s.UpdateTaskPhase(ctx, tk.ID, 2, 3); err == nil {
 		t.Error("phase 3 accepted")
 	}
 	gt, _ := s.GetTask(ctx, tk.ID)

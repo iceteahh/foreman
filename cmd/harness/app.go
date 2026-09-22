@@ -274,10 +274,10 @@ func buildApp(cfgPath string, logger *slog.Logger) (*app, error) {
 	pool := &orchestrator.Pool{
 		Store: st, Queue: q, Runner: rn, Workspaces: wsm, Checks: checks.Default(), Judge: jd, Deliver: adapter, Submit: submit,
 		Review: channel, Reviews: st, Logger: logger,
-		Budget: ledger, Dead: dead, DeadStore: st, Obs: obsProvider, Progress: progress,
+		Budget: ledger, Dead: dead, DeadStore: st, Pager: pager, Obs: obsProvider, Progress: progress,
 		Config: orchestrator.PoolConfig{
 			Global: cfg.Concurrency.Global, PerKind: cfg.Concurrency.PerKind,
-			PollInterval: cfg.PollInterval(), Lease: 2 * time.Minute,
+			PollInterval: cfg.PollInterval(), Lease: cfg.LeaseDuration(),
 			MaxJobAttempts: cfg.Queue.MaxJobAttempts, APIErrorBackoff: time.Duration(cfg.Queue.APIErrorBackoffSeconds) * time.Second,
 			ConfigDirRoot: cfg.ConfigDirRoot(), KeepWorkspaces: cfg.Retention.Workspaces == "keep",
 			CommandTimeout: 10 * time.Minute, DefaultThreshold: cfg.Judge.DefaultThreshold,
@@ -339,6 +339,13 @@ func buildApp(cfgPath string, logger *slog.Logger) (*app, error) {
 	background = append(background, &orchestrator.Periodic{
 		Name: orchestrator.LeaseFanIn, What: "fan-in sweep", Interval: cfg.FanInSweep(),
 		Once: fanIn.Once, Leases: st, Owner: replica, Logger: logger})
+	// A run can be left `queued` with no job behind it — a lease reclaimed
+	// mid-handoff, a replica that died between CreateRun and Enqueue. Nothing
+	// else notices: the task just never finishes.
+	stuck := &orchestrator.StuckRunSweeper{Store: st, Queue: q, MinAge: 3 * cfg.LeaseDuration(), Metrics: obsProvider.Metrics, Logger: logger}
+	background = append(background, &orchestrator.Periodic{
+		Name: orchestrator.LeaseStuckRuns, What: "stranded run sweep", Interval: cfg.FanInSweep(),
+		Once: stuck.Once, Leases: st, Owner: replica, Logger: logger})
 	if cfg.SessionRetention() > 0 {
 		background = append(background, &orchestrator.Periodic{
 			Name: orchestrator.LeaseSessions, What: "session snapshot sweep", Interval: time.Hour,
@@ -396,28 +403,38 @@ func (a *app) Serve(ctx context.Context) error {
 	a.Logger.Info("harness started", "workers", a.Config.Concurrency.Global, "cron_entries", a.Cron.Len(),
 		"data_root", a.Config.DataRoot, "replica", a.Replica, "store", a.Config.Database.Driver, "worker_mode", a.Config.Worker.Mode)
 
+	// The pool and the periodic jobs stop when runCtx ends: either the caller's
+	// ctx (a signal) or drain() below, which is how a serve error also brings
+	// them down instead of leaving them running behind a dead listener.
+	runCtx, drain := context.WithCancel(ctx)
+	defer drain()
 	poolDone := make(chan struct{})
 	go func() {
-		_ = a.Pool.Run(ctx)
+		_ = a.Pool.Run(runCtx)
 		close(poolDone)
 	}()
 	for _, p := range a.Background {
-		go p.Run(ctx)
+		go p.Run(runCtx)
 	}
 
+	// A failed listener drains exactly like a signal does. Returning straight
+	// out would abandon in-flight runs: their workers keep spending, their
+	// results are never recorded, and the jobs stay leased until they expire.
+	var serveErr error
 	select {
 	case <-ctx.Done():
-	case err := <-errc:
-		return err
+	case serveErr = <-errc:
+		a.Logger.Error("http server failed; draining in-flight runs", "err", serveErr)
 	}
 	a.Logger.Info("shutting down: draining in-flight runs")
 	<-a.Cron.Stop().Done()
 	shCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shCtx)
+	drain()
 	<-poolDone
 	a.Logger.Info("harness stopped")
-	return nil
+	return serveErr
 }
 
 // RunOnce submits spec and processes jobs until the task rests: its newest

@@ -41,6 +41,11 @@ type Metrics struct {
 	// rate limiting and dead letters.
 	rateLimited metric.Int64Counter
 	deadLetters metric.Int64Counter
+	// orphanedWorkers counts kills the harness could not confirm: the worker
+	// may still be running and spending with nothing tracking it.
+	orphanedWorkers metric.Int64Counter
+	// strandedRuns counts runs the sweeper found with no job driving them.
+	strandedRuns metric.Int64Counter
 	// fan-out workflows (plan Step 21).
 	fanOuts  metric.Int64Counter
 	children metric.Int64Counter
@@ -130,6 +135,14 @@ func NewMetrics(meter metric.Meter) (*Metrics, error) {
 	}
 	if m.deadLetters, err = meter.Int64Counter("harness.dead_letters",
 		metric.WithDescription("Runs dead-lettered, by kind")); err != nil {
+		return nil, wrap(err)
+	}
+	if m.orphanedWorkers, err = meter.Int64Counter("harness.workers.orphaned",
+		metric.WithDescription("Workers whose kill could not be confirmed, by kind; each one may still be spending")); err != nil {
+		return nil, wrap(err)
+	}
+	if m.strandedRuns, err = meter.Int64Counter("harness.runs.stranded",
+		metric.WithDescription("Runs found with no job driving them and put back on the queue, by kind")); err != nil {
 		return nil, wrap(err)
 	}
 	if m.fanOuts, err = meter.Int64Counter("harness.fanout.plans",
@@ -308,6 +321,22 @@ func (m *Metrics) DeadLetter(ctx context.Context, kind string) {
 		return
 	}
 	m.deadLetters.Add(ctx, 1, metric.WithAttributes(attribute.String("kind", kind)))
+}
+
+// OrphanedWorker records a kill the harness could not confirm.
+func (m *Metrics) OrphanedWorker(ctx context.Context, kind string) {
+	if m == nil {
+		return
+	}
+	m.orphanedWorkers.Add(ctx, 1, metric.WithAttributes(attribute.String("kind", kind)))
+}
+
+// StrandedRun records a run the sweeper put back on the queue.
+func (m *Metrics) StrandedRun(ctx context.Context, kind string) {
+	if m == nil {
+		return
+	}
+	m.strandedRuns.Add(ctx, 1, metric.WithAttributes(attribute.String("kind", kind)))
 }
 
 // FanOut records one planner decomposition and the children it produced.

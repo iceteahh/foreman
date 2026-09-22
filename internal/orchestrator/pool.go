@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/100xteam-ai/foreman/internal/budget"
@@ -85,6 +86,9 @@ type Pool struct {
 	// Dead records exhausted runs for operators and pages (plan Step 18);
 	// nil keeps the run `dead` without a DLQ row.
 	Dead deadletter.Sink
+	// Pager raises an out-of-band alert for a condition with no run to
+	// dead-letter — an orphaned worker a kill could not confirm. nil logs.
+	Pager deadletter.Pager
 	// DeadStore is the dead-letter table `harness requeue` updates; nil skips
 	// the bookkeeping (the requeue itself still works).
 	DeadStore deadletter.Store
@@ -321,21 +325,42 @@ func (p *Pool) acquireKind(kind string) func() {
 	}
 }
 
-// heartbeat extends the lease until stop is closed.
-func (p *Pool) heartbeat(ctx context.Context, job *queue.Job, stop <-chan struct{}) {
+// heartbeat extends the lease until stop is closed. A lost lease, or repeated
+// extend failures with the lease about to expire, cancel the run: the job is
+// then free for another worker, and driving it here as well would duplicate
+// its side effects (a second branch, a second delivery).
+func (p *Pool) heartbeat(ctx context.Context, job *queue.Job, stop <-chan struct{}, onLost func(), log *slog.Logger) {
 	interval := p.Config.Lease / 2
 	if interval < time.Second {
 		interval = time.Second
 	}
 	t := time.NewTicker(interval)
 	defer t.Stop()
+	fails := 0
 	for {
 		select {
 		case <-stop:
 			return
 		case <-t.C:
-			if err := p.Queue.Extend(ctx, job, p.Config.Lease); err != nil {
-				p.log().Warn("lease extend failed", "run_id", job.RunID, "err", err)
+			err := p.Queue.Extend(ctx, job, p.Config.Lease)
+			switch {
+			case err == nil:
+				fails = 0
+			case errors.Is(err, queue.ErrLeaseLost):
+				log.Warn("lease lost; cancelling this run so its new owner is the only one driving it", "run_id", job.RunID)
+				onLost()
+				return
+			default:
+				fails++
+				log.Warn("lease extend failed", "run_id", job.RunID, "err", err, "consecutive", fails)
+				// Three misses is more than one full lease of silence: the row
+				// is about to expire and be reclaimed, so stop before two
+				// workers run the same job.
+				if fails >= 3 {
+					log.Error("lease unextendable; cancelling this run before it is reclaimed", "run_id", job.RunID)
+					onLost()
+					return
+				}
 			}
 		}
 	}
@@ -345,9 +370,24 @@ func (p *Pool) heartbeat(ctx context.Context, job *queue.Job, stop <-chan struct
 // dead-letters the job.
 func (p *Pool) process(ctx context.Context, job *queue.Job) (err error) {
 	log := p.log().With("run_id", job.RunID, "task_id", job.TaskID, "job_attempt", job.Attempts)
+	// A lost or unextendable lease cancels this run so a worker that another
+	// replica now owns is not driven twice (heartbeat calls abandon).
+	ctx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
+	var abandoned atomic.Bool
+	abandon := func() { abandoned.Store(true); cancelRun() }
 	hbStop := make(chan struct{})
-	go p.heartbeat(context.WithoutCancel(ctx), job, hbStop)
+	go p.heartbeat(context.WithoutCancel(ctx), job, hbStop, abandon, log)
 	defer close(hbStop)
+	// A lease reclaimed mid-run makes the terminal Ack/Nack/DeadLetter fail
+	// with ErrLeaseLost. That is not a processing error: the job already
+	// belongs to whoever reclaimed it, so leave its status to them.
+	defer func() {
+		if errors.Is(err, queue.ErrLeaseLost) {
+			log.Warn("lease lost during processing; another worker owns this job now", "run_id", job.RunID)
+			err = nil
+		}
+	}()
 	// Store writes must survive a cancelled run context.
 	sctx := context.WithoutCancel(ctx)
 
@@ -469,6 +509,18 @@ func (p *Pool) process(ctx context.Context, job *queue.Job) (err error) {
 	}
 	obs.Fail(wspan, runErr, "")
 	wspan.End()
+	if res != nil && res.OrphanKill != "" {
+		p.pageOrphan(sctx, t, r, res.OrphanKill)
+	}
+	// The lease went to someone else while this run was in flight. Leave the
+	// run's status exactly as it is: writing an outcome now would race the
+	// worker that owns the job. The stranded-run sweeper recovers a run left
+	// mid-flight this way, which is the only safe place to decide, because it
+	// runs when nothing holds the job at all.
+	if abandoned.Load() {
+		log.Warn("abandoning this run: another worker owns its job now", "status", r.Status)
+		return nil
+	}
 	if runErr != nil && res == nil {
 		return infraFail("spawn worker: "+runErr.Error(), p.Config.APIErrorBackoff)
 	}
@@ -805,6 +857,22 @@ func (p *Pool) deadLetter(ctx context.Context, t *task.Task, runID, reason strin
 	}
 	p.metrics().DeadLetter(ctx, string(t.Kind))
 	p.Dead.Dead(ctx, deadletter.EntryFor(t, r, reason))
+}
+
+// pageOrphan raises an alert for a worker the harness could not confirm it
+// killed (a Kubernetes Job that would not delete). There is no run to
+// dead-letter — the run may yet finish — but a still-billing worker nobody is
+// tracking needs a human, so it pages with the worker id.
+func (p *Pool) pageOrphan(ctx context.Context, t *task.Task, r *task.Run, detail string) {
+	p.log().Error("worker could not be confirmed killed; it may still be running and spending", "run_id", r.ID, "task_id", t.ID, "detail", detail)
+	p.metrics().OrphanedWorker(ctx, string(t.Kind))
+	pager := p.Pager
+	if pager == nil {
+		pager = deadletter.LogPager{Logger: p.log()}
+	}
+	pager.Page(ctx,
+		fmt.Sprintf("harness: worker for run %s could not be confirmed killed (%s)", r.ID, t.Kind),
+		fmt.Sprintf("The kill was not confirmed, so the worker may still be running and spending.\n%s\nDelete it by hand and check the budget.", detail))
 }
 
 // finished records the run's terminal metrics and notifies the hook.

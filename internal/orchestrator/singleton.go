@@ -17,6 +17,7 @@ const (
 	LeaseEscalator = "review-escalator"
 	LeaseSessions  = "session-sweeper"
 	LeaseFanIn     = "fan-in-sweeper"
+	LeaseStuckRuns = "stuck-run-sweeper"
 	LeaseCron      = "cron"
 )
 

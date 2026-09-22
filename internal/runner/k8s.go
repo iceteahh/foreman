@@ -42,6 +42,9 @@ type K8sLauncher struct {
 	StatusPoll time.Duration
 	// Grace is the deletion grace period on SIGTERM (default 30 seconds).
 	Grace time.Duration
+	// KillTimeout bounds confirming a SIGKILL delete actually removed the Job
+	// (default 2 minutes). A delete the API accepted is not a Job that is gone.
+	KillTimeout time.Duration
 }
 
 // DefaultK8sClientEnv is what kubectl needs from the harness's environment.
@@ -113,14 +116,14 @@ func (l *K8sLauncher) Start(ctx context.Context, sp Spawn, id string, args, env 
 	logCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stream, err := logCmd.StdoutPipe()
 	if err != nil {
-		l.deleteJob(name, 0)
+		_ = l.deleteJob(name, 0)
 		return nil, err
 	}
 	// kubectl's own diagnostics ("waiting for pod …") are not worker output.
 	var clientErr bytes.Buffer
 	logCmd.Stderr = &clientErr
 	if err := logCmd.Start(); err != nil {
-		l.deleteJob(name, 0)
+		_ = l.deleteJob(name, 0)
 		return nil, err
 	}
 	p := &k8sProcess{
@@ -192,13 +195,56 @@ func (l *K8sLauncher) grace() time.Duration {
 	return 30 * time.Second
 }
 
-func (l *K8sLauncher) deleteJob(name string, grace time.Duration) {
+func (l *K8sLauncher) killTimeout() time.Duration {
+	if l.KillTimeout > 0 {
+		return l.KillTimeout
+	}
+	return 2 * time.Minute
+}
+
+// deleteJob removes a Job and reports whether kubectl accepted the delete. A
+// swallowed error here is how a runaway Job keeps spending after the harness
+// believes it killed the worker, so the error is returned, not logged and
+// dropped.
+func (l *K8sLauncher) deleteJob(name string, grace time.Duration) error {
 	argv := k8s.DeleteArgs(l.Options, name, grace)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Env = l.clientEnv()
-	_ = cmd.Run()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("kubectl delete job %s: %w: %s", name, err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+// confirmGone polls until the Job is absent or timeout expires. `kubectl
+// delete` returns as soon as the API records the deletion, which is not the
+// same as the pod being gone: it may still be terminating and still spending.
+// The kill is only real once the Job reads NotFound.
+func (l *K8sLauncher) confirmGone(name string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	argv := k8s.GetJobArgs(l.Options, name)
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+		cmd.Env = l.clientEnv()
+		out, err := cmd.Output()
+		cancel()
+		if err == nil && strings.TrimSpace(string(out)) == "" {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			detail := name
+			if err != nil {
+				detail = fmt.Sprintf("%s (kubectl get: %v)", name, err)
+			}
+			return fmt.Errorf("%w: job %s still present after %s", ErrWorkerOrphaned, detail, timeout)
+		}
+		time.Sleep(l.statusPoll())
+	}
 }
 
 // k8sProcess adapts a Job plus its log stream to runner.Process.
@@ -258,12 +304,20 @@ func (p *k8sProcess) Signal(sig syscall.Signal) error {
 	p.killMu.Lock()
 	p.deleted = true
 	p.killMu.Unlock()
-	p.launcher.deleteJob(p.name, grace)
-	if sig == syscall.SIGKILL && p.cmd.Process != nil {
+	if err := p.launcher.deleteJob(p.name, grace); err != nil {
+		return err
+	}
+	if sig != syscall.SIGKILL {
+		return nil
+	}
+	if p.cmd != nil && p.cmd.Process != nil {
 		// The log follower can outlive the Job it was following.
 		_ = syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
 	}
-	return nil
+	// A delete the API accepted is not a Job that is gone. Confirm it, or the
+	// runner reports a still-spending worker as killed (ErrWorkerOrphaned →
+	// the pool pages with the Job name).
+	return p.launcher.confirmGone(p.name, p.launcher.killTimeout())
 }
 
 // Wait blocks until the log stream ends and the pod reports a terminated

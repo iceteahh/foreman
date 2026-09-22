@@ -523,6 +523,11 @@ func (c Config) SessionRoot() string {
 	return filepath.Join(c.DataRoot, "sessions")
 }
 
+// LeaseDuration is how long a leased job is held before it may be reclaimed.
+// It is the heartbeat's window, not the task timeout: a run outliving it keeps
+// the lease alive by extending it.
+func (c Config) LeaseDuration() time.Duration { return 2 * time.Minute }
+
 // PollInterval as a duration.
 func (c Config) PollInterval() time.Duration {
 	return time.Duration(c.Queue.PollIntervalMS) * time.Millisecond

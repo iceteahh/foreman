@@ -107,7 +107,13 @@ func (r *Runner) Run(ctx context.Context) (*Report, error) {
 			rep.Cases = append(rep.Cases, skipped(c, why))
 			continue
 		}
-		res := r.runSamples(ctx, fixtures, c, &spent)
+		res, truncated := r.runSamples(ctx, fixtures, c, &spent)
+		if truncated {
+			// The case ran, but on fewer samples than asked for. Its verdict is
+			// a smaller majority than the suite was configured to need, so the
+			// report can neither bless nor block a change.
+			rep.BudgetExhausted = true
+		}
 		rep.Cases = append(rep.Cases, res)
 		if r.OnCase != nil {
 			r.OnCase(res)
@@ -121,9 +127,9 @@ func (r *Runner) Run(ctx context.Context) (*Report, error) {
 // runSamples runs one case Repeat times and reduces the samples to a single
 // result whose OK is the majority verdict. It stops early when the cost cap is
 // reached, so a partial sample set never silently becomes a full one: the
-// surviving samples are what Passes/Samples report. spent is updated as it
-// goes, because each sample costs money whether or not the case passes.
-func (r *Runner) runSamples(ctx context.Context, fixtures *Fixtures, c *Case, spent *float64) CaseResult {
+// surviving samples are what Passes/Samples report, and the second return
+// value tells the caller the cap cut them short.
+func (r *Runner) runSamples(ctx context.Context, fixtures *Fixtures, c *Case, spent *float64) (CaseResult, bool) {
 	n := r.Repeat
 	if n < 1 {
 		n = 1
@@ -131,18 +137,19 @@ func (r *Runner) runSamples(ctx context.Context, fixtures *Fixtures, c *Case, sp
 	first := r.runCase(ctx, fixtures, c)
 	*spent += first.CostUSD
 	if n == 1 {
-		return first
+		return first, false
 	}
 	passes := 0
 	if first.OK {
 		passes++
 	}
-	worst, samples := first, 1
+	worst, samples, truncated := first, 1, false
 	for i := 1; i < n; i++ {
 		if ctx.Err() != nil {
 			break
 		}
 		if _, capped := r.skipReason(c, *spent); capped {
+			truncated = true
 			break
 		}
 		s := r.runCase(ctx, fixtures, c)
@@ -164,7 +171,10 @@ func (r *Runner) runSamples(ctx context.Context, fixtures *Fixtures, c *Case, sp
 	out := worst
 	out.Samples, out.Passes = samples, passes
 	out.OK = passes*2 > samples
-	return out
+	if truncated {
+		out.Reasons = append(out.Reasons, fmt.Sprintf("cost cap cut sampling short: %d of %d samples", samples, n))
+	}
+	return out, truncated
 }
 
 // skipReason decides whether a case runs at all, and says why not.

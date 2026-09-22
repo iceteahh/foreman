@@ -10,6 +10,11 @@ import (
 	"syscall"
 )
 
+// ErrWorkerOrphaned means a kill could not be confirmed: the worker (a
+// Kubernetes Job) may still be running and spending after the harness gave up
+// on it. The pool pages on it so an operator can delete the Job by hand.
+var ErrWorkerOrphaned = errors.New("worker could not be confirmed killed")
+
 // Process is a started worker the runner supervises. Local processes and
 // containers both implement it; the runner's supervision loop (decode stdout,
 // timeout, budget backstop, kill) is identical for both.

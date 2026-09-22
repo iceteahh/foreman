@@ -174,6 +174,16 @@ func (q *Queue) DeadLetter(ctx context.Context, j *queue.Job, reason string) err
 	return q.withLease(ctx, j, `state = 'dead', lease_token = NULL, leased_until = NULL, reason = ?`, reason)
 }
 
+// HasJob implements queue.Queue.
+func (q *Queue) HasJob(ctx context.Context, runID string) (bool, error) {
+	var one int
+	err := q.db.QueryRowContext(ctx, `SELECT 1 FROM jobs WHERE run_id = ? AND state IN ('ready','leased') LIMIT 1`, runID).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // Depth implements queue.Queue.
 func (q *Queue) Depth(ctx context.Context) (queue.Depth, error) {
 	var d queue.Depth

@@ -42,6 +42,10 @@ type Result struct {
 	Signaled bool
 	Stderr   string
 	Killed   KillReason
+	// OrphanKill is set when the final SIGKILL could not be confirmed: the
+	// worker may still be running (a Kubernetes Job that would not delete). It
+	// carries the worker id and the reason, for the page the pool raises.
+	OrphanKill string
 	// EstCostUSD is the token-based running estimate (backstop only).
 	EstCostUSD float64
 	Events     int
@@ -222,8 +226,13 @@ func (rn *Runner) Run(ctx context.Context, t *task.Task, r *task.Run, sp Spawn) 
 	var (
 		killMu   sync.Mutex
 		killed   KillReason
+		orphan   string
 		killOnce sync.Once
+		killWG   sync.WaitGroup
 	)
+	// done closes once the worker has been reaped. The SIGKILL fallback waits
+	// on it so a worker that obeyed SIGTERM is never signalled again.
+	done := make(chan struct{})
 	kill := func(reason KillReason) {
 		killOnce.Do(func() {
 			killMu.Lock()
@@ -233,13 +242,30 @@ func (rn *Runner) Run(ctx context.Context, t *task.Task, r *task.Run, sp Spawn) 
 			if err := proc.Signal(syscall.SIGTERM); err != nil {
 				log.Warn("SIGTERM failed", "err", err)
 			}
+			killWG.Add(1)
 			go func() {
+				defer killWG.Done()
 				grace := rn.Grace
 				if grace <= 0 {
 					grace = 10 * time.Second
 				}
-				time.Sleep(grace)
-				_ = proc.Signal(syscall.SIGKILL)
+				select {
+				case <-done:
+					return // SIGTERM was enough; there is nothing left to kill
+				case <-time.After(grace):
+				}
+				if err := proc.Signal(syscall.SIGKILL); err != nil {
+					log.Error("SIGKILL failed; worker may still be running", "err", err, "worker", proc.ID())
+					// A kill we could not confirm is a still-spending worker;
+					// record it so the pool pages rather than believing the
+					// worker dead. A dead local process group (ESRCH) is not
+					// this: only an unconfirmed kill sets ErrWorkerOrphaned.
+					if errors.Is(err, ErrWorkerOrphaned) {
+						killMu.Lock()
+						orphan = proc.ID() + ": " + err.Error()
+						killMu.Unlock()
+					}
+				}
 			}()
 		})
 	}
@@ -248,8 +274,12 @@ func (rn *Runner) Run(ctx context.Context, t *task.Task, r *task.Run, sp Spawn) 
 	timeout := t.Policy.Timeout()
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
-	done := make(chan struct{})
+	// watchDone closes once the watcher can no longer start a kill. killWG is
+	// only safe to wait on after that: a watcher that fires as the process is
+	// reaped would otherwise Add to the group after Wait had returned.
+	watchDone := make(chan struct{})
 	go func() {
+		defer close(watchDone)
 		select {
 		case <-timer.C:
 			kill(KillTimeout)
@@ -320,14 +350,22 @@ func (rn *Runner) Run(ctx context.Context, t *task.Task, r *task.Run, sp Spawn) 
 			rn.Progress.OnEvent(r.ID, ev)
 		}
 	}
+	// Drain stderr to EOF before reaping: proc.Wait() reaps the process, which
+	// closes its stderr pipe, so joining the drain first is what keeps a
+	// worker's last stderr (an auth error, a stack trace) from being lost.
+	wg.Wait()
 	code, signaled, waitErr := proc.Wait()
 	close(done)
-	wg.Wait()
+	<-watchDone
+	// A kill in flight (the SIGKILL fallback) must finish before we read its
+	// outcome, or an orphaned Job would go unreported.
+	killWG.Wait()
 	res.Stderr = errBuf.String()
 	res.EstCostUSD = tracker.Total()
 
 	killMu.Lock()
 	res.Killed = killed
+	res.OrphanKill = orphan
 	killMu.Unlock()
 
 	if waitErr != nil {

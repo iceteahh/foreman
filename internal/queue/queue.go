@@ -51,5 +51,10 @@ type Queue interface {
 	Nack(ctx context.Context, j *Job, delay time.Duration) error
 	// DeadLetter parks the job; operators requeue it (Step 18).
 	DeadLetter(ctx context.Context, j *Job, reason string) error
+	// HasJob reports whether a ready or leased job exists for runID. The
+	// stuck-run sweeper uses it to tell a run that is genuinely queued from one
+	// stranded with no job behind it (a lost handoff, a crash between CreateRun
+	// and Enqueue).
+	HasJob(ctx context.Context, runID string) (bool, error)
 	Depth(ctx context.Context) (Depth, error)
 }

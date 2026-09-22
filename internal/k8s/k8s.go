@@ -408,6 +408,15 @@ func DeleteArgs(o Options, name string, grace time.Duration) []string {
 	return args
 }
 
+// GetJobArgs builds a command that prints the Job's own name when it exists
+// and nothing when it does not (`--ignore-not-found`). Empty output is how the
+// launcher confirms a delete actually removed the Job rather than merely being
+// accepted while a still-billing pod terminates.
+func GetJobArgs(o Options, name string) []string {
+	return append([]string{o.kubectl()}, append(o.global(),
+		"get", "job", name, "--ignore-not-found", "-o", "name")...)
+}
+
 // VersionArgs runs `claude --version` in the worker image as a one-off pod,
 // so version pinning checks the image the Jobs will actually use.
 func VersionArgs(o Options) []string {

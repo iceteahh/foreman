@@ -35,6 +35,64 @@ type Progress struct {
 
 	mu   sync.Mutex
 	runs map[string]*runProgress
+
+	// pub carries snapshots to the background publisher. OnEvent runs on the
+	// runner's decode loop, so publishing inline would let a slow Slack call
+	// stall event decoding — and with it the timeout, the budget backstop and
+	// the audit log, which all live on that loop.
+	pubOnce sync.Once
+	pub     chan pubReq
+}
+
+// pubReq is one queued publish, or a Flush barrier when ack is set and runID
+// is empty.
+type pubReq struct {
+	runID string
+	snap  Snapshot
+	ack   chan struct{}
+}
+
+// publisher drains pub serially, so a run's updates stay in order.
+func (p *Progress) publisher() {
+	for req := range p.pub {
+		if req.runID != "" {
+			p.emit(req.runID, req.snap)
+		}
+		if req.ack != nil {
+			close(req.ack)
+		}
+	}
+}
+
+// startPublisher creates the queue and its draining goroutine once.
+func (p *Progress) startPublisher() {
+	p.pubOnce.Do(func() {
+		p.pub = make(chan pubReq, 64)
+		go p.publisher()
+	})
+}
+
+// Flush blocks until everything queued before the call has reached the sink.
+// The harness does not need it — a dropped tail update is harmless — but a
+// test that asserts on what the sink received does.
+func (p *Progress) Flush() {
+	p.startPublisher()
+	ack := make(chan struct{})
+	p.pub <- pubReq{ack: ack}
+	<-ack
+}
+
+// publish hands a snapshot to the background publisher and never blocks. A
+// full buffer means the sink is slower than the stream; dropping the update is
+// correct, because each snapshot is the whole state and the next one supersedes
+// it. The result event is the one that matters and it arrives last.
+func (p *Progress) publish(runID string, snap Snapshot) {
+	p.startPublisher()
+	select {
+	case p.pub <- pubReq{runID: runID, snap: snap}:
+	default:
+		p.log().Debug("progress update dropped: the sink is not keeping up", "run_id", runID)
+	}
 }
 
 // ProgressSink publishes one run's timeline. review/slack implements it as a
@@ -221,7 +279,7 @@ func (p *Progress) OnEvent(runID string, ev *events.Event) {
 	p.mu.Unlock()
 
 	if publish {
-		p.emit(runID, snap)
+		p.publish(runID, snap)
 	}
 	// Stream-level metrics are recorded once, when the result arrives.
 	if ev.Type == events.TypeResult && p.Metrics != nil {

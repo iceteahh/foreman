@@ -14,14 +14,22 @@ import (
 // ErrNotFound is returned when a task or run id is unknown.
 var ErrNotFound = errors.New("store: not found")
 
+// ErrPhaseChanged is returned by UpdateTaskPhase when the task has left the
+// phase the caller believed it was in.
+var ErrPhaseChanged = errors.New("store: task is no longer in the expected phase")
+
 // Store is the persistence seam (plan Step 3).
 type Store interface {
 	CreateTask(ctx context.Context, t *task.Task) error
 	GetTask(ctx context.Context, id string) (*task.Task, error)
 	// UpdateTaskSession moves the task's resume pointer.
 	UpdateTaskSession(ctx context.Context, taskID, sessionID string) error
-	// UpdateTaskPhase records the phase the task moved into (design §6).
-	UpdateTaskPhase(ctx context.Context, taskID string, phase int) error
+	// UpdateTaskPhase moves the task from phase `from` into phase `to`. Like
+	// AdvancePhase it is a compare-and-swap: a caller holding a stale view of
+	// the task (a requeued run from an earlier phase, a replica that lost its
+	// lease and came back) would otherwise rewind a task that has already
+	// moved on. A task no longer at `from` yields ErrPhaseChanged.
+	UpdateTaskPhase(ctx context.Context, taskID string, from, to int) error
 	// ListChildTasks returns the fan-out children of a parent in creation
 	// order (plan Step 21); an empty slice for a task that never fanned out.
 	ListChildTasks(ctx context.Context, parentID string) ([]*task.Task, error)

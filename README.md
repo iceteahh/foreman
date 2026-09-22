@@ -286,6 +286,8 @@ scripts/demo-m*.sh  end-to-end demos, offline by default
 - Workers never see the operator's git config, and no task kind carries an unrestricted `Bash(git *)` —
   otherwise a worker could push through the operator's credential helper and skip the whole evaluation
   pipeline.
+- A lost lease abandons the run rather than finishing it; `orchestrator.StuckRunSweeper` recovers it once
+  nothing holds the job.
 - `data_root` lives outside this repo; `config.Load` refuses a root inside it, because the CLI would
   otherwise walk up and feed the harness's own `CLAUDE.md` to every worker.
 

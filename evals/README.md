@@ -105,6 +105,7 @@ A pull request that touches `templates/`, `CLAUDE.md`, `evals/`,
 must clear the gate (`.github/workflows/golden.yml`):
 
 - the pass rate may not fall more than 5 points below the baseline,
+- the pass rate may not fall below the absolute floor of 80% (`-min-pass-rate 0.8`),
 - no case that passed in the baseline may start failing (even at an unchanged
   rate — a swapped pass hides a real regression), and
 - no baseline case may be missing, so deleting a failing case is not a way to
@@ -112,10 +113,22 @@ must clear the gate (`.github/workflows/golden.yml`):
 
 Every other pull request runs only the free validation.
 
-The second rule assumes a case is deterministic, which the 2026-09-21 runs show
-it is not. Until both the baseline and the gated run use `-repeat`, expect that
-rule to fire on variance; read the named cases before believing a block, and do
-not relax the gate to make it quiet — sample the suite instead.
+The floor is what stops the bar walking down. A delta-only gate measures each
+night against the last one, and one case of 21 is 4.8% — inside a 5% drop, every
+night, forever. For the same reason the nightly blesses a baseline only when the
+pass rate is at or above the previous one: a worse baseline makes tonight's
+regression tomorrow's target.
+
+The nightly runs with `-repeat 3` and scores the majority, because the
+2026-09-21 runs show a case is not deterministic. A run whose cost cap cut a
+case's sampling short is marked `budget_exhausted`, and the gate refuses it in
+either direction — a partial majority can neither bless nor block. Read the
+named cases before believing a block, and do not relax the gate to make it
+quiet; sample the suite instead.
+
+**The checked-in baseline (76%) is below the floor.** The gate blocks until the
+suite reaches 80%. That is the floor doing its job, and clearing it is a
+deliberate decision: raise the suite, or lower the floor on the record.
 
 ## Feeding human decisions back in
 

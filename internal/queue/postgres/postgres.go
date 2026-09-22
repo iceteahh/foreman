@@ -154,6 +154,15 @@ func (q *Queue) DeadLetter(ctx context.Context, j *queue.Job, reason string) err
 }
 
 // Depth implements queue.Queue.
+func (q *Queue) HasJob(ctx context.Context, runID string) (bool, error) {
+	var one int
+	err := q.pool.QueryRow(ctx, `SELECT 1 FROM jobs WHERE run_id = $1 AND state IN ('ready','leased') LIMIT 1`, runID).Scan(&one)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (q *Queue) Depth(ctx context.Context) (queue.Depth, error) {
 	var d queue.Depth
 	now := q.now().UTC()
