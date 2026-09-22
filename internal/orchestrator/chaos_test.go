@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/100xteam-ai/foreman/internal/budget"
 	"github.com/100xteam-ai/foreman/internal/queue"
 	"github.com/100xteam-ai/foreman/internal/task"
 )
@@ -259,5 +260,68 @@ func TestStuckSweeperLeavesFreshRunsAlone(t *testing.T) {
 	}
 	if live, _ := e.q.HasJob(ctx, r1.ID); live {
 		t.Error("a fresh run was re-enqueued")
+	}
+}
+
+// The daily ceiling is hard, not advisory. Check alone reads the spend so far,
+// so runs starting together all see room and all start: the day ends N
+// max-costs over its limit. Reserving each run's own ceiling up front is what
+// makes the limit hold, and settling returns whatever the run did not spend.
+func TestChaosBudgetCeilingIsHard(t *testing.T) {
+	bin, _ := fakeClaude(t, `touch src/fixed; cat "`+fixture("result_success.json")+`"`)
+	e := newEnv(t, bin)
+	// Room for exactly two claims of 0.4.
+	pager := withOps(e, map[string]float64{"code_fix": 1.0, budget.Global: 1.0})
+	_ = pager
+	ctx := context.Background()
+	day := budget.Day(time.Now())
+
+	first, err := e.pool.Budget.Reserve(ctx, "code_fix", 0.4)
+	if err != nil || first == nil {
+		t.Fatalf("first reservation: %v", err)
+	}
+	second, err := e.pool.Budget.Reserve(ctx, "code_fix", 0.4)
+	if err != nil || second == nil {
+		t.Fatalf("second reservation: %v", err)
+	}
+	// Both claims are booked even though nothing has been spent yet, which is
+	// exactly the headroom a soft ceiling would hand out twice.
+	if spent, _, _ := e.store.GetSpend(ctx, "code_fix", day); spent < 0.79 || spent > 0.81 {
+		t.Errorf("booked %v, want both claims (0.80) held", spent)
+	}
+	if _, err := e.pool.Budget.Reserve(ctx, "code_fix", 0.4); err == nil {
+		t.Fatal("a third claim fitted inside a ceiling that only had room for two")
+	} else if !errors.Is(err, budget.ErrExhausted) {
+		t.Errorf("refusal is not an ErrExhausted: %v", err)
+	}
+	// A refused claim is handed back, not left booked.
+	if spent, _, _ := e.store.GetSpend(ctx, "code_fix", day); spent < 0.79 || spent > 0.81 {
+		t.Errorf("a refused claim stayed booked: %v", spent)
+	}
+
+	// Settling returns the unspent part, and the room comes back.
+	if err := e.pool.Budget.Settle(ctx, first, 0.05); err != nil {
+		t.Fatal(err)
+	}
+	spent, runs, _ := e.store.GetSpend(ctx, "code_fix", day)
+	if spent < 0.44 || spent > 0.46 {
+		t.Errorf("after settling one claim at 0.05 the day reads %v, want ~0.45", spent)
+	}
+	if runs != 2 {
+		t.Errorf("runs = %d; a reservation counts its run once, settling must not count it again", runs)
+	}
+	if _, err := e.pool.Budget.Reserve(ctx, "code_fix", 0.4); err != nil {
+		t.Errorf("the refunded headroom was not reusable: %v", err)
+	}
+
+	// A run whose own ceiling is larger than the day's could never start, and
+	// saying "budget exhausted" would send an operator looking at today's
+	// spend instead of at the misconfiguration.
+	_, err = e.pool.Budget.Reserve(ctx, "code_fix", 5.0)
+	if err == nil {
+		t.Fatal("a claim larger than the whole daily ceiling was accepted")
+	}
+	if !strings.Contains(err.Error(), "can never start") {
+		t.Errorf("the refusal does not name the misconfiguration: %v", err)
 	}
 }

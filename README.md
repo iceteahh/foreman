@@ -288,6 +288,8 @@ scripts/demo-m*.sh  end-to-end demos, offline by default
 - Workers never see the operator's git config, and no task kind carries an unrestricted `Bash(git *)` —
   otherwise a worker could push through the operator's credential helper and skip the whole evaluation
   pipeline.
+- A run reserves its own `max_cost_usd` before starting and settles the real cost afterwards, so the daily
+  ceiling is hard rather than advisory.
 - A lost lease abandons the run rather than finishing it; `orchestrator.StuckRunSweeper` recovers it once
   nothing holds the job.
 - `data_root` lives outside this repo; `config.Load` refuses a root inside it, because the CLI would

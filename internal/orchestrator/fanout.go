@@ -92,20 +92,21 @@ func (p *Pool) children(ctx context.Context, parentID string) ([]fanout.Child, e
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]string, 0, len(tasks))
+	for _, ct := range tasks {
+		ids = append(ids, ct.ID)
+	}
+	// One query for every child, not one per child: the sweeper calls this for
+	// each fan-out parent on every tick.
+	latest, err := p.Store.LatestRuns(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]fanout.Child, 0, len(tasks))
 	for _, ct := range tasks {
-		c := fanout.Child{Task: ct}
-		r, err := p.Store.LatestRun(ctx, ct.ID)
-		switch {
-		case err == nil:
-			c.Run = r
-		case errors.Is(err, store.ErrNotFound):
-			// A child whose run row is missing has not started; it counts as
-			// pending so the fan-in waits rather than synthesising over a hole.
-		default:
-			return nil, err
-		}
-		out = append(out, c)
+		// A child with no run row has not started; it counts as pending so the
+		// fan-in waits rather than synthesising over a hole.
+		out = append(out, fanout.Child{Task: ct, Run: latest[ct.ID]})
 	}
 	return out, nil
 }

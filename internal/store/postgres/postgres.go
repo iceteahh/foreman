@@ -447,6 +447,25 @@ func (s *Store) ListRunsByStatus(ctx context.Context, status task.RunStatus) ([]
 	return s.listRuns(ctx, `SELECT doc FROM runs WHERE status = $1 ORDER BY created_at, id`, string(status))
 }
 
+// LatestRuns returns the newest run of each task, keyed by task id
+// (runs_task_latest_idx). One query instead of one per task: the fan-in asks
+// for every child of every parent on every sweep.
+func (s *Store) LatestRuns(ctx context.Context, taskIDs []string) (map[string]*task.Run, error) {
+	out := make(map[string]*task.Run, len(taskIDs))
+	if len(taskIDs) == 0 {
+		return out, nil
+	}
+	runs, err := s.listRuns(ctx, `SELECT DISTINCT ON (task_id) doc FROM runs
+		WHERE task_id = ANY($1) ORDER BY task_id, created_at DESC, id DESC`, taskIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range runs {
+		out[r.TaskID] = r
+	}
+	return out, nil
+}
+
 // ListRunsByTask returns a task's runs in attempt order.
 func (s *Store) ListRunsByTask(ctx context.Context, taskID string) ([]*task.Run, error) {
 	return s.listRuns(ctx, `SELECT doc FROM runs WHERE task_id = $1 ORDER BY attempt, created_at`, taskID)

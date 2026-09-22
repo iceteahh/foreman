@@ -56,6 +56,11 @@ type Store interface {
 	ListRunsByTask(ctx context.Context, taskID string) ([]*task.Run, error)
 	// LatestRun returns the most recently created run of a task.
 	LatestRun(ctx context.Context, taskID string) (*task.Run, error)
+	// LatestRuns is LatestRun for many tasks in one round trip, keyed by task
+	// id. A task with no runs is absent from the map rather than an error. The
+	// fan-in asks for every child of a parent, on every sweep, for every
+	// parent: one query per child is where that becomes parents × children.
+	LatestRuns(ctx context.Context, taskIDs []string) (map[string]*task.Run, error)
 	// CountAttempts returns the number of runs recorded for a task.
 	CountAttempts(ctx context.Context, taskID string) (int, error)
 

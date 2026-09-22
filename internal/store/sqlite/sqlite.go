@@ -470,6 +470,35 @@ func (s *Store) ListRunsByStatus(ctx context.Context, status task.RunStatus) ([]
 	return s.listRuns(ctx, `SELECT doc FROM runs WHERE status = ? ORDER BY created_at, id`, string(status))
 }
 
+// LatestRuns returns the newest run of each task, keyed by task id. It reads
+// them in one pass ordered newest-first per task and keeps the first of each,
+// which is what runs_task_latest_idx (migration 0005) serves.
+func (s *Store) LatestRuns(ctx context.Context, taskIDs []string) (map[string]*task.Run, error) {
+	out := make(map[string]*task.Run, len(taskIDs))
+	// SQLite caps host parameters (999 by default), so ask in chunks.
+	const chunk = 400
+	for start := 0; start < len(taskIDs); start += chunk {
+		end := min(start+chunk, len(taskIDs))
+		ids := taskIDs[start:end]
+		args := make([]any, len(ids))
+		for i, id := range ids {
+			args[i] = id
+		}
+		q := `SELECT doc FROM runs WHERE task_id IN (?` + strings.Repeat(",?", len(ids)-1) + `)
+			ORDER BY task_id, created_at DESC, id DESC`
+		runs, err := s.listRuns(ctx, q, args...) //nolint:gosec // placeholders only; ids are bound
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range runs {
+			if _, seen := out[r.TaskID]; !seen {
+				out[r.TaskID] = r
+			}
+		}
+	}
+	return out, nil
+}
+
 // ListRunsByTask returns a task's runs in attempt order.
 func (s *Store) ListRunsByTask(ctx context.Context, taskID string) ([]*task.Run, error) {
 	return s.listRuns(ctx, `SELECT doc FROM runs WHERE task_id = ? ORDER BY attempt, created_at`, taskID)

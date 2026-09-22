@@ -407,6 +407,29 @@ func (p *Pool) process(ctx context.Context, job *queue.Job) (err error) {
 		log.Warn("run not queued; acking stale job", "status", r.Status)
 		return p.Queue.Ack(sctx, job)
 	}
+	// Claim this run's ceiling before spending any of it. Check alone is soft:
+	// several runs starting together all see room and all start, and the day
+	// ends N max-costs over. The claim is settled below with the real cost.
+	//
+	// It happens while the run is still `queued`, so a refusal is just a job
+	// handed back — no status to unwind and no run left mid-flight.
+	reservation, budgetErr := p.Budget.Reserve(sctx, string(t.Kind), task.Effective(t, r).Policy.MaxCostUSD)
+	if budgetErr != nil {
+		// The budget filled between leasing this job and starting it. The
+		// ceilings reset at midnight, so wait rather than failing the run.
+		log.Warn("daily budget reached after leasing; the job waits", "err", budgetErr)
+		return p.Queue.Nack(sctx, job, p.maxBackoff())
+	}
+	settled := false
+	defer func() {
+		// Every exit path returns the claim, or the headroom stays booked
+		// until midnight. A run that never reported a cost settles at zero.
+		if !settled && reservation != nil {
+			if e := p.Budget.Settle(context.WithoutCancel(sctx), reservation, 0); e != nil {
+				log.Error("returning the budget reservation failed", "err", e)
+			}
+		}
+	}()
 	if err := p.Store.UpdateRunStatus(sctx, r.ID, task.StatusRunning, ""); err != nil {
 		return err
 	}
@@ -533,12 +556,13 @@ func (p *Pool) process(ctx context.Context, job *queue.Job) (err error) {
 	if err := p.Store.RecordMetrics(sctx, r.ID, res.Metrics()); err != nil {
 		return err
 	}
-	// Spend is recorded from the authoritative result cost, before any routing
-	// decision, so a breach stops the next lease even if this run then fails.
-	if cost := res.Metrics().CostUSD; cost > 0 {
-		if e := p.Budget.Record(sctx, string(t.Kind), cost); e != nil {
-			log.Error("recording spend failed", "err", e)
-		}
+	// Settle the claim against the authoritative result cost, before any
+	// routing decision, so a breach stops the next lease even if this run then
+	// fails. The difference is usually a refund: a run rarely spends its whole
+	// ceiling, and that headroom is unavailable to everything else until now.
+	settled = true
+	if e := p.Budget.Settle(sctx, reservation, res.Metrics().CostUSD); e != nil {
+		log.Error("settling spend failed", "err", e)
 	}
 	if err := p.Store.RecordArtifacts(sctx, r.ID, res.EventLogURI, res.SessionURI, nil); err != nil {
 		return err

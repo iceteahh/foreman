@@ -485,6 +485,22 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Server.APITokenEnv) == "" {
 		errs = append(errs, errors.New("server.api_token_env must name the variable holding the API bearer token"))
 	}
+	// A run reserves its own max_cost_usd against the day's ceiling before it
+	// starts, so a per-run ceiling above a daily one means that kind can never
+	// run at all. Nothing else would fail: the jobs would just sit queued.
+	if per := c.Budgets.PerRunUSDDefault; per > 0 {
+		for key, daily := range c.Budgets.DailyUSD {
+			// `judge` is a budget key, not a task kind: judge runs are bounded
+			// by judge.max_cost_usd and record their spend afterwards rather
+			// than reserving, so per_run_usd_default does not apply to it.
+			if key == "judge" {
+				continue
+			}
+			if daily > 0 && per > daily {
+				errs = append(errs, fmt.Errorf("budgets.per_run_usd_default (%g) is above budgets.daily_usd.%s (%g): a run reserves its own ceiling before starting, so that kind could never run", per, key, daily))
+			}
+		}
+	}
 	return errors.Join(errs...)
 }
 

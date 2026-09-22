@@ -149,7 +149,16 @@ func TestBudgetCeilingStopsLeasingAndRecordsSpend(t *testing.T) {
 	pager := withOps(e, map[string]float64{"code_fix": 0.015, budget.Global: 1})
 	ctx := context.Background()
 
-	tk, _, err := e.sub.Submit(ctx, e.spec("sh pass.sh"))
+	// A run reserves its own max_cost_usd before starting, so the per-run
+	// ceiling has to fit inside the daily one or the kind could never run.
+	// The spend that breaches the ceiling is the fixture's real cost, settled
+	// against the claim once the run finishes.
+	fits := func(cmds ...string) task.Spec {
+		sp := e.spec(cmds...)
+		sp.Policy = []byte(`{"max_turns": 5, "timeout_ms": 5000, "max_cost_usd": 0.014, "max_retries": 1, "judge": {"enabled": false}}`)
+		return sp
+	}
+	tk, _, err := e.sub.Submit(ctx, fits("sh pass.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +179,7 @@ func TestBudgetCeilingStopsLeasingAndRecordsSpend(t *testing.T) {
 	}
 
 	// The kind is now over its ceiling: a new task is queued but never leased.
-	tk2, r2, err := e.sub.Submit(ctx, e.spec("sh pass.sh"))
+	tk2, r2, err := e.sub.Submit(ctx, fits("sh pass.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +224,7 @@ func TestBudgetCeilingStopsLeasingAndRecordsSpend(t *testing.T) {
 	if kinds := e.pool.leasableKinds(ctx); kinds == nil || len(kinds) != 0 {
 		t.Errorf("breaker open but leasableKinds = %v", kinds)
 	}
-	tk3, r3, _ := e.sub.Submit(ctx, e.spec("sh pass.sh"))
+	tk3, r3, _ := e.sub.Submit(ctx, fits("sh pass.sh"))
 	if processed, _ := e.pool.ProcessOne(ctx, ctx); processed {
 		t.Error("a job was leased with the global breaker open")
 	}

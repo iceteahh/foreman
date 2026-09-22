@@ -183,15 +183,130 @@ func (l *Ledger) Check(ctx context.Context, kind string) error {
 	return nil
 }
 
+// Reservation is a claim held against the day's ceilings while a run executes.
+// Settle it with what the run actually cost.
+type Reservation struct {
+	Kind string
+	Day  string
+	// USD is what was claimed (the run's max_cost_usd).
+	USD float64
+}
+
+// Reserve claims usd against the kind's and the global ceiling before a run
+// starts, and refuses when the claim would cross one.
+//
+// Check alone is a soft ceiling: it reads the spend so far, so N runs starting
+// together all see room and all start, and the day's total ends up N max-costs
+// over. Reserving the run's own ceiling up front makes the limit hard — the
+// worst case is the budget looking fuller than it is while runs are in flight,
+// which Settle corrects the moment each finishes.
+//
+// A nil ledger, a nil store or a zero claim reserves nothing and never refuses.
+func (l *Ledger) Reserve(ctx context.Context, kind string, claim float64) (*Reservation, error) {
+	if l == nil || l.Store == nil || claim <= 0 {
+		return nil, nil
+	}
+	if err := l.Check(ctx, kind); err != nil {
+		return nil, err
+	}
+	day := Day(l.now())
+	// A run whose own ceiling is larger than the day's would never fit, even
+	// on an empty ledger: the kind would silently never run. Say so plainly
+	// rather than reporting it as today's budget being used up.
+	for _, key := range []string{kind, Global} {
+		if limit := l.Limit(key); limit > 0 && claim > limit {
+			return nil, fmt.Errorf("%w: a run of kind %s may cost up to %s but the daily ceiling for %s is %s, so it can never start; raise budgets.daily_usd.%s or lower the kind's max_cost_usd",
+				ErrExhausted, kind, usd(claim), key, usd(limit), key)
+		}
+	}
+	res := &Reservation{Kind: kind, Day: day, USD: claim}
+	// The claim lands on both ceilings; the run is counted once, here, so a
+	// later Settle only moves money.
+	claimed := make([]string, 0, 2)
+	for _, key := range []string{kind, Global} {
+		total, err := l.Store.AddSpend(ctx, key, day, claim, 1)
+		if err != nil {
+			// Fail open, as Check does: refusing every run because the
+			// bookkeeping is unavailable is worse than briefly overspending,
+			// and the per-run ceiling still bounds each worker.
+			l.log().Error("budget reservation failed; allowing the run unreserved", "key", key, "err", err)
+			l.rollback(ctx, day, claimed, claim)
+			return nil, nil
+		}
+		claimed = append(claimed, key)
+		limit := l.Limit(key)
+		if limit > 0 && total > limit {
+			// This claim is what crossed the line: hand it back and refuse.
+			// Two replicas racing may both roll back and both be refused,
+			// which over-refuses for one tick and never over-admits.
+			l.rollback(ctx, day, claimed, claim)
+			return nil, &ExhaustedError{Key: key, Day: day, Spent: total - claim, Limit: limit, Kind: kind,
+				IsGlobal: key == Global, ResetsAt: nextMidnight(l.now())}
+		}
+	}
+	return res, nil
+}
+
+// rollback returns a partial claim to the pool.
+func (l *Ledger) rollback(ctx context.Context, day string, keys []string, claim float64) {
+	for _, key := range keys {
+		if _, err := l.Store.AddSpend(ctx, key, day, -claim, -1); err != nil {
+			l.log().Error("returning a budget reservation failed; the day reads fuller than it is until midnight",
+				"key", key, "day", day, "usd", claim, "err", err)
+		}
+	}
+}
+
+// Settle replaces a reservation with what the run actually cost. The
+// difference is usually negative: a run rarely spends its whole ceiling, and
+// until this runs that headroom is unavailable to everything else.
+//
+// Settling a nil reservation records the cost outright, which is what an
+// unreserved caller (the judge) wants.
+func (l *Ledger) Settle(ctx context.Context, res *Reservation, actualUSD float64) error {
+	if l == nil || l.Store == nil {
+		return nil
+	}
+	if res == nil {
+		return l.Record(ctx, "", actualUSD)
+	}
+	delta := actualUSD - res.USD
+	var errs []error
+	for _, key := range []string{res.Kind, Global} {
+		// runs 0: the reservation already counted this run.
+		total, err := l.Store.AddSpend(ctx, key, res.Day, delta, 0)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("settle spend for %s: %w", key, err))
+			continue
+		}
+		limit := l.Limit(key)
+		if limit > 0 && total >= limit {
+			if key == Global {
+				l.openBreaker(ctx, res.Day, total, limit)
+			} else {
+				l.log().Warn("daily budget for kind reached; the orchestrator stops leasing it",
+					"kind", key, "day", res.Day, "spent_usd", total, "limit_usd", limit)
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // Record adds a finished run's cost to the kind and global totals. It opens
 // the circuit breaker (and pages once) when the global ceiling is crossed.
+// Reserve/Settle is the hard-ceiling path; Record is for spend nobody reserved
+// (the judge), where the amount is small and only known afterwards.
 func (l *Ledger) Record(ctx context.Context, kind string, usd float64) error {
 	if l == nil || l.Store == nil {
 		return nil
 	}
 	day := Day(l.now())
+	keys := []string{kind, Global}
+	if kind == "" || kind == Global {
+		keys = []string{Global}
+	}
 	var errs []error
-	for _, key := range []string{kind, Global} {
+	for _, key := range keys {
 		total, err := l.Store.AddSpend(ctx, key, day, usd, 1)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("record spend for %s: %w", key, err))

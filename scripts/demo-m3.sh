@@ -85,7 +85,9 @@ worker:
     network: harness-demo-internal
     user: ""
     egress_proxy: http://egress:3128
-budgets: { daily_usd: { code_fix: 2, global: 3 } }
+# per_run_usd_default has to fit inside the daily ceiling: a run reserves its
+# own ceiling before starting, so a 2.50 default under a 2.00 day never runs.
+budgets: { per_run_usd_default: 1, daily_usd: { code_fix: 2, global: 3 } }
 observability: { enabled: true, prometheus_addr: "", progress: log }
 YAML
   PROMPT="Create an empty file named src/fixed (use Write), then run sh check.sh to confirm it passes."
@@ -112,7 +114,9 @@ SH
   cat > "$DEMO/harness.yaml" <<YAML
 data_root: $DEMO/data
 worker: { claude_bin: $BROKEN, check_version: false }
-budgets: { daily_usd: { code_fix: 2, global: 3 } }
+# per_run_usd_default has to fit inside the daily ceiling: a run reserves its
+# own ceiling before starting, so a 2.50 default under a 2.00 day never runs.
+budgets: { per_run_usd_default: 1, daily_usd: { code_fix: 2, global: 3 } }
 observability: { enabled: true, prometheus_addr: "", progress: log }
 YAML
   PROMPT="Create src/fixed so check.sh passes."
@@ -184,7 +188,10 @@ say "a kind over its ceiling is refused at intake with 429"
 # Drop the ceiling below what has already been spent and submit again. The
 # port is picked here because 8080 is often taken on a developer machine.
 PORT=${DEMO_PORT:-18099}
-sed -i.bak "s/code_fix: 2/code_fix: 0.001/" "$DEMO/harness.yaml"
+# Drop the per-run default with the ceiling: a run reserves its own ceiling
+# before starting, so a default above the day's would be refused at load
+# rather than at intake, which is not what this step is demonstrating.
+sed -i.bak 's/^budgets: .*/budgets: { per_run_usd_default: 0.0005, daily_usd: { code_fix: 0.001, global: 3 } }/' "$DEMO/harness.yaml"
 # Loopback: the API refuses to serve open on a routable address. If .env
 # carries HARNESS_API_TOKEN the request below sends it.
 printf 'server: { addr: "127.0.0.1:%s" }\n' "$PORT" >> "$DEMO/harness.yaml"

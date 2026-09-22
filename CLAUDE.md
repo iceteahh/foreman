@@ -103,6 +103,10 @@ Fixtures in `testdata/events/` were captured from CLI 2.1.243 (2.1.270 for the t
 - `UpdateTaskPhase` is a compare-and-swap like `AdvancePhase`, and `Requeue` refuses a dead run whose phase
   differs from the task's: the replacement inherits the dead run's phase, so requeuing an abandoned phase
   would redo planning after the plan was approved and throw the approval away.
+- A run reserves its own `max_cost_usd` against the day's ceilings before it starts (`budget.Reserve`) and
+  settles the difference from the result cost (`budget.Settle`). `Check` alone is a soft ceiling: runs
+  starting together all see room and the day ends N max-costs over. `config.Validate` refuses a
+  `budgets.per_run_usd_default` above any kind's `daily_usd`, because that kind could never run.
 - A reviewed run never returns to `queued`: rejecting one closes it and queues a *new* run, so the record of
   what the human saw stays intact and the retry gets its own attempt number (`task/state.go`).
 - The judge never sees the worker transcript; a judge failure is `uncertain` (→ human review), never `pass`. `policy.max_retries` counts retries after the first attempt.

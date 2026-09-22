@@ -34,6 +34,84 @@ Local prerequisites: Go 1.27.1 and golangci-lint installed 2026-09-13 (Homebrew)
 
 ---
 
+## Status — production-readiness phases 1-4 (code) 2026-09-22
+
+Worked from [PRODUCTION_READINESS_PLAN.md](PRODUCTION_READINESS_PLAN.md), written from a review of `main` at
+`741a636`. Every code item in Phases 1-4 is built; the operational items are not, and are listed at the bottom.
+Build, vet, `-race` tests, lint, `golden-validate`, `k8s-validate`, the `docker`-tagged tests and all five demos
+are green.
+
+**Phase 1 — the trust boundary.** The HTTP API had no authentication at all: `POST /tasks` and
+`POST /runs/{id}/review` were mounted on the listener the GitHub webhook needs exposed. Every route now requires
+`Authorization: Bearer $HARNESS_API_TOKEN` (`server.api_token_env`) except `GET /healthz`, the HMAC-verified
+webhook, and the self-verifying Slack handler; `serve` refuses to start without a token unless `server.addr` is
+loopback, and `doctor` reports the state. Workers no longer see the operator's git config
+(`GIT_TERMINAL_PROMPT=0`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`) and no kind carries
+`Bash(git *)` any more — the write kinds get `git status|diff|log|show`, matching `code_review`. Without both, a
+worker could `git push` through the operator's credential helper and skip the judge, review and delivery
+entirely. Issue title and body are fenced in an `<issue>` block the prompt names as content rather than
+instructions, `templates.Render` rewrites a `</issue>` inside them so user text cannot close the fence, and
+`github.trigger_label` is now required (an empty one made opening an issue enough to start a paid run). Golden
+case ids are validated against `^[a-z0-9][a-z0-9-]*$` and fixture paths are `Clean`ed before the prefix check,
+because the id names the origin directory the suite creates and removes. The `data_root`-inside-a-repo check is
+anchored on `data_root` itself rather than the config file's directory: what matters is the repository around
+the checkouts, wherever the config happens to live.
+
+**Phase 2 — the backstops.** A failed `kubectl delete` was swallowed and the kill reported success, so a runaway
+Job kept spending. `deleteJob` now returns its error, `Signal` propagates it, and SIGKILL only reports success
+once the Job reads NotFound within `kill_timeout`; an unconfirmed kill is `runner.ErrWorkerOrphaned`, which the
+pool pages on. A lost lease (or three consecutive failed extends) cancels the run and leaves its status alone —
+two workers on one run duplicate its branch and its delivery — and the new `orchestrator.StuckRunSweeper` is the
+only thing that decides for an abandoned run, because it runs when nothing holds the job at all. It also
+recovers a run stranded `queued` with no job behind it, which nothing noticed before. `UpdateTaskPhase` became a
+compare-and-swap and `Requeue` refuses a dead run from a phase the task has left, so a requeue can no longer
+rewind an approved plan. The gate ratchet is closed: `-min-pass-rate 0.8` is enforced alongside `-max-drop`, the
+nightly samples with `-repeat 3`, and a baseline is blessed only when the pass rate is at or above the previous
+one. A cost cap that truncates a case's sampling now marks the report `budget_exhausted`, so a partial majority
+can neither bless nor block. Four smaller fixes: a serve error drains like a signal instead of abandoning
+in-flight runs, stderr is drained to EOF before the process is reaped (reaping closes the pipe), `Progress`
+publishes on a background queue so a slow Slack call cannot stall the decode loop that owns the timeout and the
+budget backstop, and the egress tunnel's idle deadline is set on the connection being read rather than written.
+
+**Phase 3 — coverage, alerts, hygiene.** `cmd/harness` went 2.7% → 49.6%: boot, the SIGTERM drain, the API-token
+wiring, the open-API refusal, `run-once`, and the operator loop (`requeue -list` → `replay` → `tree` → `budget` →
+`requeue`), plus `review`, `eval list/gate` and `doctor`. `internal/session` went 24.9% → 76.1% with the S3
+store exercised against a throwaway MinIO under the `docker` tag — `worker.mode: k8s` requires it and it had no
+tests at all. New metrics `harness_workers_orphaned_total` and `harness_runs_stranded_total` with alert rules for
+both, plus queue-stuck-past-three-leases and dead-letter bursts (`promtool check rules` passes). Hygiene:
+`harness.yaml` and the root `task.json` are untracked and gitignored, compose takes MinIO and Grafana passwords
+from the environment with no defaults, all base images are digest-pinned, and `govulncheck` runs in CI
+(`make vulncheck`; currently clean).
+
+**Phase 4 — scale (code only).** The daily budget is a hard ceiling: a run reserves its own `max_cost_usd`
+before starting and settles the difference from the result cost. `Check` alone was soft — runs starting together
+all saw room and the day ended N max-costs over. `config.Validate` refuses a `per_run_usd_default` above any
+kind's `daily_usd`, because that kind could never run; it caught exactly that in `scripts/demo-m3.sh`. SQLite
+gained the `runs(task_id, created_at DESC, id DESC)` index Postgres has had since `0001_init` (migration
+`0005_run_latest.sql`), and the fan-in reads every child's latest run in one query (`store.LatestRuns`) instead
+of one per child per parent per sweep.
+
+Low-priority follow-ups from the review are also done: every truncation helper counts runes instead of bytes
+(`deadletter.clip`, `golden.firstLine`, `audit.clipLine`, `obs.clipLine`, `tree.truncate`, `ops.clipReason`),
+the `FileSink.Open` comment matches its append flags, the unreachable `needs_review → queued` edge is removed
+(rejecting closes the run and queues a new one), and the `Classify` subtype fallback is documented and pinned by
+a synthetic event.
+
+Not done, because none of it is code:
+
+- **No supervised rollout.** Phase 3 asks for two or three internal repos in docker mode with `draft_prs: true`,
+  every delivery human-reviewed, a ~$20 daily ceiling, and a week with no orphaned workers, no stuck runs and no
+  budget overshoot. Nothing here has run against a real repository.
+- **The pager path has never fired end to end.** The rules are written and validate; no alert has reached a human.
+- **Phase 4's staging cluster does not exist.** Postgres, S3 sessions and k8s workers are built and unit-tested,
+  but no retry has been observed restoring its session on a different node, and nothing has been load-tested at
+  full concurrency — which is where the Phase 2 lease work gets its real exercise.
+- **The blessed baseline is 76%, below the 0.8 floor now enforced.** The next nightly will block until the suite
+  reaches the floor. That is the gate working; it is also a decision someone has to make deliberately — raise the
+  suite, or lower the floor on the record.
+
+---
+
 ## Status — golden suite priced and baselined 2026-09-21
 
 The suite ran end to end against the real CLI for the first time (2.1.270, `haiku`, `worker.mode: local`).
