@@ -25,11 +25,15 @@ var Statuses = []RunStatus{
 
 // transitions encodes the §3.2 diagram exactly. Anything not listed is illegal.
 var transitions = map[RunStatus][]RunStatus{
-	StatusQueued:      {StatusRunning},
-	StatusRunning:     {StatusEvaluating},
-	StatusEvaluating:  {StatusPassed, StatusFailed, StatusNeedsReview},
-	StatusFailed:      {StatusQueued, StatusDead},
-	StatusNeedsReview: {StatusDelivered, StatusQueued, StatusClosed},
+	StatusQueued:     {StatusRunning},
+	StatusRunning:    {StatusEvaluating},
+	StatusEvaluating: {StatusPassed, StatusFailed, StatusNeedsReview},
+	StatusFailed:     {StatusQueued, StatusDead},
+	// A reviewed run never goes back to `queued`. Rejecting one closes it and
+	// queues a *new* run (orchestrator.Decide → retry), so the record of what
+	// the human saw stays intact and the retry gets its own attempt number. An
+	// unreachable edge here would be a licence to rewind a reviewed run.
+	StatusNeedsReview: {StatusDelivered, StatusClosed},
 	StatusPassed:      {StatusDelivered},
 	StatusDelivered:   {},
 	StatusDead:        {},

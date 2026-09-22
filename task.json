@@ -1,8 +1,0 @@
-{
-  "kind": "code_fix",
-  "title": "Add a Farewell function",
-  "prompt": "Add Farewell(name string) and a test for it.",
-  "workspace": { "type": "git", "repo": "iceteahh/test-harness", "ref": "main" },
-  "acceptance": { "commands": ["go test ./..."], "diff_scope": ["**/*.go"] },
-  "requested_by": "hung"
-}

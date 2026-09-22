@@ -240,8 +240,10 @@ func firstLine(s string) string {
 	if i := strings.IndexAny(s, "\r\n"); i >= 0 {
 		s = s[:i] + " …"
 	}
-	if len(s) > 300 {
-		s = s[:299] + "…"
+	// Rune-counted, not byte-counted: a byte cut would split a multi-byte
+	// rune in worker output and leave U+FFFD in the report.
+	if r := []rune(s); len(r) > 300 {
+		s = string(r[:299]) + "…"
 	}
 	return s
 }

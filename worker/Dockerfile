@@ -6,8 +6,12 @@
 # The harness bind-mounts the workspace at /workspace and an empty per-run
 # CLAUDE_CONFIG_DIR at /run/claude-config; credentials arrive through the
 # environment only. Egress goes through HTTPS_PROXY (deploy/docker-compose.yaml).
-ARG NODE_IMAGE=node:22-bookworm-slim
-ARG GO_IMAGE=golang:1.27-bookworm
+# Base images are digest-pinned. A tag is mutable: `node:22-bookworm-slim`
+# resolves to a different image next week, so an unpinned rebuild silently
+# changes what every worker runs — the one thing the CLI version pin exists to
+# prevent. Re-pin deliberately with `docker buildx imagetools inspect <tag>`.
+ARG NODE_IMAGE=node:22-bookworm-slim@sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9
+ARG GO_IMAGE=golang:1.27-bookworm@sha256:69a7b9788769bec032d238959b61854e9ae87f57be9029ec04e9885fabf99195
 
 FROM ${GO_IMAGE} AS go
 

@@ -55,6 +55,20 @@ jobs:
             | tar -xz -C /usr/local/bin kubeconform
       - run: scripts/k8s-validate.sh
 
+  # Known vulnerabilities in the dependency tree, reachable-symbol filtered.
+  # It is the one check that fails on something nobody in this repo changed —
+  # an advisory published against a module already in go.sum.
+  vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: govulncheck ./...
+
   lint:
     runs-on: ubuntu-latest
     steps:

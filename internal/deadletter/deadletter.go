@@ -179,12 +179,17 @@ func EntryFor(t *task.Task, r *task.Run, reason string) Entry {
 	return e
 }
 
+// clip shortens s to n runes, with an ellipsis when it had to cut.
+// A byte slice would split a multi-byte rune and emit U+FFFD, so the cut
+// counts runes: these strings carry worker output and issue text, which are
+// routinely not ASCII.
 func clip(s string, n int) string {
 	s = strings.TrimSpace(s)
-	if len(s) <= n {
+	r := []rune(s)
+	if len(r) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	return string(r[:n]) + "…"
 }
 
 // LogPager is the default Pager: it writes the alert to the log. Step 18's

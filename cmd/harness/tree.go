@@ -114,10 +114,14 @@ func printTaskRows(ctx context.Context, app *app, w *tabwriter.Writer, t *task.T
 	return nil
 }
 
+// A byte slice would split a multi-byte rune and emit U+FFFD, so the cut
+// counts runes: these strings carry worker output and issue text, which are
+// routinely not ASCII.
 func truncate(s string, n int) string {
 	s = strings.ReplaceAll(strings.TrimSpace(s), "\n", " ")
-	if len(s) <= n {
+	r := []rune(s)
+	if len(r) <= n {
 		return s
 	}
-	return s[:n-1] + "…"
+	return string(r[:n-1]) + "…"
 }

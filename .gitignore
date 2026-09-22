@@ -30,6 +30,12 @@ secrets.yml
 *.secret.yaml
 *.secret.yml
 
+# The operator's own config and ad-hoc task specs. harness.example.yaml is the
+# tracked template (README: copy it to harness.yaml); a tracked harness.yaml
+# would put one machine's data_root and worker mode in everyone's checkout.
+/harness.yaml
+/task.json
+
 # Local overrides of checked-in config
 *.local.yaml
 *.local.yml

@@ -11,7 +11,7 @@ var legal = map[RunStatus][]RunStatus{
 	StatusRunning:     {StatusEvaluating},
 	StatusEvaluating:  {StatusPassed, StatusFailed, StatusNeedsReview},
 	StatusFailed:      {StatusQueued, StatusDead},
-	StatusNeedsReview: {StatusDelivered, StatusQueued, StatusClosed},
+	StatusNeedsReview: {StatusDelivered, StatusClosed},
 	StatusPassed:      {StatusDelivered},
 }
 

@@ -80,8 +80,19 @@ func TestClassifyNilIsCrash(t *testing.T) {
 	if Classify(nil) != OutcomeCrash {
 		t.Error("nil result must be a crash")
 	}
+	// The subtype fallback: a result with no terminal_reason at all, which is
+	// what a CLI predating the field emits. The pinned CLI always sets it
+	// (result_max_turns.json has both), so this synthetic event is the only
+	// thing keeping the branch honest.
 	if got := Classify(&ResultEvent{IsError: true, Subtype: "error_max_turns"}); got != OutcomeMaxTurns {
 		t.Errorf("max_turns subtype: %s", got)
+	}
+	if got := Classify(&ResultEvent{IsError: true, Subtype: "error_max_budget"}); got != OutcomeBudgetExhausted {
+		t.Errorf("max_budget subtype: %s", got)
+	}
+	// And terminal_reason always wins over the subtype when both are present.
+	if got := Classify(&ResultEvent{IsError: true, Subtype: "error_max_turns", TerminalReason: ReasonAPIError}); got != OutcomeAPIError {
+		t.Errorf("terminal_reason must win over subtype: %s", got)
 	}
 	if got := Classify(&ResultEvent{IsError: true, TerminalReason: "something_new"}); got != OutcomeError {
 		t.Errorf("unknown error reason: %s", got)

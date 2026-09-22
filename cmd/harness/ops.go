@@ -196,9 +196,13 @@ func cmdBudget(args []string, logger *slog.Logger) error {
 	return nil
 }
 
+// A byte slice would split a multi-byte rune and emit U+FFFD, so the cut
+// counts runes: these strings carry worker output and issue text, which are
+// routinely not ASCII.
 func clipReason(s string) string {
-	if len(s) <= 70 {
+	r := []rune(s)
+	if len(r) <= 70 {
 		return s
 	}
-	return s[:69] + "…"
+	return string(r[:69]) + "…"
 }

@@ -33,7 +33,9 @@ func (s *FileSink) path(runID string) (string, error) {
 	return filepath.Join(s.Root, runID+".ndjson"), nil
 }
 
-// Open creates (or truncates) the run's log.
+// Open creates the run's log, or appends to it. Appending is deliberate: a
+// retry of the same run id must not erase the evidence of the attempt that
+// failed, which is the whole point of keeping the stream.
 func (s *FileSink) Open(_ context.Context, runID string) (Writer, error) {
 	p, err := s.path(runID)
 	if err != nil {

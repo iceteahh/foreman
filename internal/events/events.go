@@ -215,6 +215,12 @@ func Classify(r *ResultEvent) Outcome {
 	case ReasonMaxTurns:
 		return OutcomeMaxTurns
 	}
+	// Subtype is only consulted once terminal_reason has said nothing. The
+	// pinned CLI always sets terminal_reason (result_max_turns.json carries
+	// both), so these two lines are unreachable against it and exist for a
+	// build that predates the field — a downgrade, or a fixture captured
+	// before it existed. They are never the primary signal: classifying on
+	// subtype alone is what conflated a budget stop with a crash.
 	if strings.Contains(r.Subtype, "max_turns") {
 		return OutcomeMaxTurns
 	}

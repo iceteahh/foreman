@@ -85,7 +85,8 @@ it spends no tokens:
 scripts/demo-m1.sh            # REAL=1 uses the installed CLI and spends tokens
 ```
 
-Submit one task and process it to completion:
+Submit one task and process it to completion. `task.json` is a file you write; it
+is gitignored, like `harness.yaml`, because it describes one operator's run:
 
 ```bash
 bin/harness run-once -task task.json
@@ -230,8 +231,9 @@ make build            # bin/harness
 make test             # race, all packages, no tokens
 make lint             # golangci-lint v2
 make live             # spawns the real CLI and spends tokens (needs a worker credential)
-make docker-test      # needs a daemon and the worker image; no tokens
+make docker-test      # container/egress argv + the S3 session store against MinIO; a daemon, no tokens
 make postgres-test    # throwaway Postgres; no tokens
+make vulncheck        # govulncheck over the dependency tree; free
 ```
 
 Tests that cost something or need infrastructure are build-tagged: `live` spends tokens,

@@ -9,7 +9,7 @@ export
 
 WORKER_IMAGE ?= harness/worker:cli-$(shell sed -n 's/^const PinnedCLIVersion = "\(.*\)"$$/\1/p' internal/runner/version.go)
 
-.PHONY: all build test lint vet tidy clean doctor live live-golden golden golden-validate worker-image docker-test compose-up compose-down postgres-test postgres-up postgres-down k8s-validate helm-config
+.PHONY: all build test lint vet tidy clean doctor live live-golden golden golden-validate worker-image docker-test compose-up compose-down postgres-test postgres-up postgres-down k8s-validate helm-config vulncheck
 
 all: build test
 
@@ -37,12 +37,15 @@ GOLDEN_MAX_COST ?= 8
 worker-image: ## build the pinned worker image (plan Step 14)
 	docker build -t $(WORKER_IMAGE) --build-arg CLI_VERSION=$(subst harness/worker:cli-,,$(WORKER_IMAGE)) worker/
 
-docker-test: ## container + egress tests against a real daemon; no tokens
-	$(GO) test -tags docker -count=1 -timeout 20m ./internal/container/...
+docker-test: ## container, egress and S3-session tests against a real daemon; no tokens
+	$(GO) test -tags docker -count=1 -timeout 20m ./internal/container/... ./internal/session/...
 
 # The harness runs in a container here, so worker containers are siblings and
 # the daemon resolves their bind mounts on the host: the stack must know the
 # host-side path of the data root.
+vulncheck: ## known vulnerabilities in the dependency tree (same check as CI)
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
 compose-up: ## local ops stack: harness, egress proxy, OTel collector, Prometheus, Grafana, MinIO
 	mkdir -p deploy/.compose-data
 	HARNESS_HOST_DATA=$(CURDIR)/deploy/.compose-data \

@@ -4,7 +4,7 @@ Go harness that runs autonomous agent tasks by spawning Claude Code headless (`c
 Design: `claude-p-agent-harness-design.md`. Plan: `IMPLEMENTATION_PLAN.md`. Verified CLI behaviour: `docs/cli-contract.md`.
 
 ## Secrets
-`.env` (gitignored, template `.env.example`) holds the worker credential (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`; an OAuth token in `ANTHROPIC_API_KEY` gets 401), `HARNESS_API_TOKEN` (the HTTP API bearer token, `server.api_token_env`), `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET`, `HARNESS_LOG`.
+`.env` (gitignored, template `.env.example`) holds the worker credential (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`; an OAuth token in `ANTHROPIC_API_KEY` gets 401), `HARNESS_API_TOKEN` (the HTTP API bearer token, `server.api_token_env`), `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET`, `HARNESS_LOG`, and for the ops stack `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` (compose has no default passwords).
 `bin/harness`, `make`, and `scripts/demo-m1.sh` load it from the working directory; existing environment variables win.
 
 ## Commands
@@ -12,7 +12,9 @@ Design: `claude-p-agent-harness-design.md`. Plan: `IMPLEMENTATION_PLAN.md`. Veri
 - `make live` runs build-tagged `live` tests that spawn the real CLI and spend tokens (runner + judge; needs a worker credential)
 - `make golden-validate` (free) checks every golden case parses and has its fixture; `make golden` runs the whole
   suite under a cost cap; `make live-golden` runs a few cases through the real pipeline
-- `make worker-image` builds the pinned worker image; `make docker-test` runs the build-tagged `docker` tests (real daemon, no tokens)
+- `make worker-image` builds the pinned worker image; `make docker-test` runs the build-tagged `docker` tests
+  (container/egress argv and the S3 session store against a throwaway MinIO; real daemon, no tokens)
+- `make vulncheck` runs govulncheck over the dependency tree (free; CI runs the same check)
 - `make postgres-test` starts a throwaway Postgres and runs the build-tagged `postgres` tests (store + queue, no tokens);
   `make k8s-validate` (free) lints and renders the Helm chart, validates every manifest and the worker Job the harness
   builds, and checks the binary accepts the rendered config; `make helm-config` regenerates `deploy/harness.k8s.yaml`
@@ -44,7 +46,8 @@ stranded-run sweeper (`stuck.go`), requeue, `Periodic` singleton driver), `confi
 `budget` (daily ceilings + circuit breaker),
 `deadletter` (DLQ + paging), `obs` (OTel metrics, per-run traces, live progress),
 `eval/golden` (Layer 4: cases, fixtures, scoring, report, regression gate, review-override import).
-Worker image in `worker/Dockerfile`; ops stack and Grafana dashboard in `deploy/`; Helm chart for the scaled
+Worker image in `worker/Dockerfile` (base images are digest-pinned); ops stack, Grafana dashboard and
+alert rules (`deploy/prometheus-rules.yaml`) in `deploy/`; Helm chart for the scaled
 topology in `deploy/k8s/` (its rendered config is checked in as `deploy/harness.k8s.yaml` and loaded by a test).
 Task-kind templates in `templates/<kind>/`; multi-phase kinds add `templates/<kind>/phases/<n>/{phase.json,prompt.md.tmpl}`.
 Task-kind fan-out templates add `templates/<kind>/child/{task.json,prompt.md.tmpl}`.
@@ -100,6 +103,8 @@ Fixtures in `testdata/events/` were captured from CLI 2.1.243 (2.1.270 for the t
 - `UpdateTaskPhase` is a compare-and-swap like `AdvancePhase`, and `Requeue` refuses a dead run whose phase
   differs from the task's: the replacement inherits the dead run's phase, so requeuing an abandoned phase
   would redo planning after the plan was approved and throw the approval away.
+- A reviewed run never returns to `queued`: rejecting one closes it and queues a *new* run, so the record of
+  what the human saw stays intact and the retry gets its own attempt number (`task/state.go`).
 - The judge never sees the worker transcript; a judge failure is `uncertain` (→ human review), never `pass`. `policy.max_retries` counts retries after the first attempt.
 - `Policy.Merge`/`Acceptance.Merge` deep-copy: never `json.Unmarshal` an override into a struct copy that shares slices with the base.
 - Read-only kinds (`code_review`, `report`, `triage`) get no write tool and no unrestricted `Bash(git *)`; their

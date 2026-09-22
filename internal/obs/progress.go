@@ -403,12 +403,16 @@ func summariseTools(tools map[string]int) string {
 	return strings.Join(parts, ", ")
 }
 
+// A byte slice would split a multi-byte rune and emit U+FFFD, so the cut
+// counts runes: these strings carry worker output and issue text, which are
+// routinely not ASCII.
 func clipLine(s string, n int) string {
 	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
-	if len(s) <= n {
+	r := []rune(s)
+	if len(r) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	return string(r[:n]) + "…"
 }
 
 var _ runner.Progress = (*Progress)(nil)
