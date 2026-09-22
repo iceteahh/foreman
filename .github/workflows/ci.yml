@@ -34,7 +34,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: go test -tags postgres -count=1 ./internal/store/postgres/... ./internal/queue/postgres/...
+      # -p 1: both packages clear tables in this one database, and packages run
+      # in parallel by default, so the store tests emptied the queue tests' rows
+      # mid-run. Same flag as `make postgres-test`.
+      - run: go test -tags postgres -count=1 -p 1 ./internal/store/postgres/... ./internal/queue/postgres/...
         env:
           HARNESS_TEST_POSTGRES_DSN: postgres://harness:harness@localhost:5432/harness_test?sslmode=disable
 

@@ -70,8 +70,12 @@ postgres-up:
 postgres-down:
 	docker rm -f harness-pg-test >/dev/null 2>&1 || true
 
+# -p 1: the store and queue packages each clear tables in the one shared
+# database, and `go test` runs packages in parallel by default, so the store
+# tests emptied the queue tests' rows mid-run ("depth {Ready:0}", "leased 15,
+# want 40" in CI). One package at a time is the fix; the tests themselves are fine.
 postgres-test: postgres-up ## build-tagged `postgres` tests against a real database (no tokens)
-	HARNESS_TEST_POSTGRES_DSN="$(PG_DSN)" $(GO) test -tags postgres -count=1 ./internal/store/postgres/... ./internal/queue/postgres/...
+	HARNESS_TEST_POSTGRES_DSN="$(PG_DSN)" $(GO) test -tags postgres -count=1 -p 1 ./internal/store/postgres/... ./internal/queue/postgres/...
 
 k8s-validate: ## free: the chart lints, renders, validates, and the binary accepts what it renders
 	scripts/k8s-validate.sh
