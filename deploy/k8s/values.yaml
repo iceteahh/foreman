@@ -74,7 +74,10 @@ postgres:
 # Every key in it becomes a worker environment variable, so put nothing else in it.
 workerSecret: harness-worker
 
-# The orchestrator's own secrets (GitHub token, Slack, webhook secret, S3 keys).
+# The orchestrator's own secrets: HARNESS_API_TOKEN (the API bearer token;
+# the Deployment binds every interface, so `serve` refuses to start without
+# it), GITHUB_TOKEN, GITHUB_WEBHOOK_SECRET, SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET,
+# AWS keys.
 harnessSecret: harness-orchestrator
 
 objectStorage:

@@ -144,6 +144,14 @@ func cmdDoctor(args []string) error {
 	default:
 		report(false, "credential", fmt.Sprintf("neither %s nor %s is set: workers cannot authenticate (host login is Keychain-only)", cfg.Worker.APIKeyEnv, cfg.Worker.OAuthTokenEnv))
 	}
+	switch {
+	case cfg.APIToken() != "":
+		report(true, "api auth", cfg.Server.APITokenEnv+" set; every route but /healthz and the webhook requires it")
+	case cfg.APIAuthError() == nil:
+		fmt.Printf("%s  %-14s %s\n", "warn", "api auth", cfg.Server.APITokenEnv+" unset: the API is open, allowed only because "+cfg.Server.Addr+" is loopback")
+	default:
+		report(false, "api auth", cfg.Server.APITokenEnv+" unset and "+cfg.Server.Addr+" is not loopback: `serve` refuses to start")
+	}
 	fmt.Printf("%s  %-14s %s\n", warnMark(os.Getenv(cfg.GitHub.TokenEnv) != ""), "github token", cfg.GitHub.TokenEnv+envDetail(cfg.GitHub.TokenEnv, "delivery will push branches without opening PRs"))
 	fmt.Printf("%s  %-14s %s\n", warnMark(os.Getenv(cfg.GitHub.WebhookSecretEnv) != ""), "webhook secret", cfg.GitHub.WebhookSecretEnv+envDetail(cfg.GitHub.WebhookSecretEnv, "signatures not verified"))
 	switch {

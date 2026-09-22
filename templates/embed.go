@@ -228,11 +228,36 @@ func Render(kind task.Kind, data any) (string, error) {
 		return "", err
 	}
 	var sb strings.Builder
-	if err := t.Execute(&sb, data); err != nil {
+	if err := t.Execute(&sb, sealIssueText(data)); err != nil {
 		return "", fmt.Errorf("render prompt for kind %q: %w", kind, err)
 	}
 	return sb.String(), nil
 }
+
+// issueFields are the template keys that carry text the issue's author wrote.
+var issueFields = map[string]bool{"Title": true, "Body": true}
+
+// sealIssueText keeps user-written text from closing the `<issue>` fence the
+// prompt templates wrap it in: a body containing `</issue>` would otherwise
+// end the quoted block early and put whatever follows on the same footing as
+// the harness's own instructions. Only the map form (what intake builds) is
+// touched; the tag is rewritten, not stripped, so the text stays readable.
+func sealIssueText(data any) any {
+	m, ok := data.(map[string]any)
+	if !ok {
+		return data
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		if s, isStr := v.(string); isStr && issueFields[k] {
+			v = issueTag.Replace(s)
+		}
+		out[k] = v
+	}
+	return out
+}
+
+var issueTag = strings.NewReplacer("</issue>", "</issue >", "</ISSUE>", "</ISSUE >", "<issue>", "<issue >", "<ISSUE>", "<ISSUE >")
 
 func readJSON(kind task.Kind, name string, v any) error {
 	b, err := files.ReadFile(string(kind) + "/" + name)

@@ -185,12 +185,16 @@ say "a kind over its ceiling is refused at intake with 429"
 # port is picked here because 8080 is often taken on a developer machine.
 PORT=${DEMO_PORT:-18099}
 sed -i.bak "s/code_fix: 2/code_fix: 0.001/" "$DEMO/harness.yaml"
-printf 'server: { addr: ":%s" }\n' "$PORT" >> "$DEMO/harness.yaml"
+# Loopback: the API refuses to serve open on a routable address. If .env
+# carries HARNESS_API_TOKEN the request below sends it.
+printf 'server: { addr: "127.0.0.1:%s" }\n' "$PORT" >> "$DEMO/harness.yaml"
+AUTH=()
+[[ -n "${HARNESS_API_TOKEN:-}" ]] && AUTH=(-H "authorization: Bearer $HARNESS_API_TOKEN")
 bin/harness serve -config "$DEMO/harness.yaml" > "$DEMO/serve.log" 2>&1 &
 SERVE_PID=$!
 for _ in $(seq 1 40); do curl -sf "http://127.0.0.1:$PORT/healthz" >/dev/null && break; sleep 0.25; done
 CODE=$(curl -sS -o "$DEMO/refused.json" -w '%{http_code}' -X POST "http://127.0.0.1:$PORT/tasks" \
-  -H 'content-type: application/json' --data-binary @"$DEMO/task.json")
+  -H 'content-type: application/json' "${AUTH[@]}" --data-binary @"$DEMO/task.json")
 kill $SERVE_PID 2>/dev/null || true
 wait $SERVE_PID 2>/dev/null || true
 echo "POST /tasks -> HTTP $CODE"

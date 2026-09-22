@@ -72,17 +72,21 @@ func TestLoadCaseDefaultsIDToFilename(t *testing.T) {
 
 func TestLoadRejectsBadCases(t *testing.T) {
 	for name, body := range map[string]string{
-		"unknown field":   `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass"},"typo":1}`,
-		"bad outcome":     `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"delivered"}}`,
-		"unknown kind":    `{"description":"d","kind":"nope","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass"}}`,
-		"no description":  `{"kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass"}}`,
-		"no prompt":       `{"description":"d","kind":"code_fix","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass"}}`,
-		"no repo":         `{"description":"d","kind":"code_fix","prompt":"p","expect":{"outcome":"pass"}}`,
-		"both repo forms": `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod","bundle":"x.bundle"},"expect":{"outcome":"pass"}}`,
-		"missing fixture": `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/gone"},"expect":{"outcome":"pass"}}`,
-		"escaping path":   `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"../../etc"},"expect":{"outcome":"pass"}}`,
-		"bad judge":       `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass","judge_verdict":"great"}}`,
-		"files on a fail": `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"fail","files_touched":["a.go"]}}`,
+		"unknown field":        `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass"},"typo":1}`,
+		"bad outcome":          `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"delivered"}}`,
+		"unknown kind":         `{"description":"d","kind":"nope","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass"}}`,
+		"no description":       `{"kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass"}}`,
+		"no prompt":            `{"description":"d","kind":"code_fix","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass"}}`,
+		"no repo":              `{"description":"d","kind":"code_fix","prompt":"p","expect":{"outcome":"pass"}}`,
+		"both repo forms":      `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod","bundle":"x.bundle"},"expect":{"outcome":"pass"}}`,
+		"missing fixture":      `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/gone"},"expect":{"outcome":"pass"}}`,
+		"escaping path":        `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"../../etc"},"expect":{"outcome":"pass"}}`,
+		"escaping after clean": `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/../../etc"},"expect":{"outcome":"pass"}}`,
+		"absolute path":        `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"/etc"},"expect":{"outcome":"pass"}}`,
+		"path id":              `{"id":"../../tmp/x","description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass"}}`,
+		"uppercase id":         `{"id":"My_Case","description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass"}}`,
+		"bad judge":            `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"pass","judge_verdict":"great"}}`,
+		"files on a fail":      `{"description":"d","kind":"code_fix","prompt":"p","repo":{"dir":"fixtures/mod"},"expect":{"outcome":"fail","files_touched":["a.go"]}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := suiteDir(t)

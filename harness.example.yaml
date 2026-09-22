@@ -1,6 +1,8 @@
 # Copy to harness.yaml. Every key is optional; defaults are in internal/config.
 server:
   addr: ":8080"
+  api_token_env: HARNESS_API_TOKEN   # bearer token every route but /healthz and the webhook requires;
+                                     # `serve` refuses to start without it unless addr is loopback
 data_root: ../foreman-data     # sqlite db, audit logs, session snapshots, workspaces.
                               # Relative paths resolve against this file's directory. Point it outside the
                               # repo in a deployment: workspaces are checked out under it, and the CLI walks

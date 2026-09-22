@@ -361,10 +361,28 @@ func classifyStderr(res *Result) {
 	}
 }
 
-// env is the worker allowlist: PATH, CLAUDE_CONFIG_DIR, ANTHROPIC_API_KEY, plus
-// ExtraEnv. Nothing else is inherited and HOME is never overridden (it is also
-// not passed: the CLI does not need it once CLAUDE_CONFIG_DIR is set; git/ssh
-// inside tool calls fall back to the process owner's home via getpwuid).
+// gitIsolation is what every worker's git sees: no global or system config,
+// and no prompt. The host HOME passes through (the CLI needs it), which would
+// otherwise hand the worker the operator's ~/.gitconfig, and with it the
+// credential helper that lets `git push` succeed with the operator's identity,
+// skipping the judge, review and delivery. The harness's own git calls set the
+// same trio (workspace.Local); the token the harness clones with never reaches
+// the worker. SSH keys under HOME stay reachable, which is why no write kind
+// carries an unrestricted `Bash(git *)` either (templates test).
+var gitIsolation = []string{"GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null"}
+
+// pinnedEnv are the names ExtraEnv may not override: the credentials and the
+// paths the runner sets itself, and the git isolation above.
+var pinnedEnv = map[string]bool{
+	"HOME": true, "CLAUDE_CONFIG_DIR": true, "ANTHROPIC_API_KEY": true, "CLAUDE_CODE_OAUTH_TOKEN": true,
+	"GIT_TERMINAL_PROMPT": true, "GIT_CONFIG_NOSYSTEM": true, "GIT_CONFIG_GLOBAL": true,
+}
+
+// env is the worker allowlist: PATH, CLAUDE_CONFIG_DIR, ANTHROPIC_API_KEY, the
+// git isolation trio, plus ExtraEnv. Nothing else is inherited and HOME is
+// never overridden (it is also not passed: the CLI does not need it once
+// CLAUDE_CONFIG_DIR is set; git/ssh inside tool calls fall back to the process
+// owner's home via getpwuid).
 func (rn *Runner) env(configDir string) []string {
 	env := []string{"CLAUDE_CONFIG_DIR=" + configDir}
 	if p := os.Getenv("PATH"); p != "" {
@@ -375,6 +393,7 @@ func (rn *Runner) env(configDir string) []string {
 	if h := os.Getenv("HOME"); h != "" {
 		env = append(env, "HOME="+h)
 	}
+	env = append(env, gitIsolation...)
 	if rn.APIKey != "" {
 		env = append(env, "ANTHROPIC_API_KEY="+rn.APIKey)
 	}
@@ -383,7 +402,7 @@ func (rn *Runner) env(configDir string) []string {
 	}
 	for _, kv := range rn.ExtraEnv {
 		k, _, ok := strings.Cut(kv, "=")
-		if !ok || k == "HOME" || k == "CLAUDE_CONFIG_DIR" || k == "ANTHROPIC_API_KEY" || k == "CLAUDE_CODE_OAUTH_TOKEN" {
+		if !ok || pinnedEnv[k] {
 			continue
 		}
 		env = append(env, kv)

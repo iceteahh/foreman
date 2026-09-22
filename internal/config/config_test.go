@@ -27,7 +27,7 @@ func TestLoadOverridesAndPaths(t *testing.T) {
 data_root: data
 concurrency: { global: 4, per_kind: { code_fix: 3 } }
 worker: { claude_bin: /opt/claude, budget_flag_ratio: 0.8, check_version: false }
-github: { draft_prs: false, trigger_label: "" }
+github: { draft_prs: false, trigger_label: "agent" }
 env: { GOFLAGS: "-mod=mod", SECRET: "$HARNESS_TEST_SECRET", EMPTY: "$HARNESS_TEST_MISSING" }
 cron:
   - name: nightly
@@ -49,7 +49,7 @@ cron:
 	if c.Worker.ClaudeBin != "/opt/claude" || c.Worker.BudgetFlagRatio != 0.8 || c.CheckVersion() || c.Worker.DefaultMaxTurns != 30 {
 		t.Errorf("worker %+v", c.Worker)
 	}
-	if c.DraftPRs() || c.GitHub.TriggerLabel != "" || c.GitHub.TokenEnv != "GITHUB_TOKEN" {
+	if c.DraftPRs() || c.GitHub.TriggerLabel != "agent" || c.GitHub.TokenEnv != "GITHUB_TOKEN" {
 		t.Errorf("github %+v", c.GitHub)
 	}
 	if c.DataRoot != filepath.Join(dir, "data") || c.DBPath() != filepath.Join(dir, "data", "harness.db") || c.SessionRoot() != filepath.Join(dir, "data", "sessions") {
@@ -241,5 +241,69 @@ func TestLoadRefusesDataRootInsideTheRepo(t *testing.T) {
 	}
 	if _, err := Load(path); err != nil {
 		t.Fatalf("a data_root outside the repo must load: %v", err)
+	}
+}
+
+// An empty trigger label would make the act of opening an issue start a paid
+// run on the opener's prompt; the label is what makes it a maintainer's call.
+func TestValidateRequiresTriggerLabel(t *testing.T) {
+	c := Default()
+	c.GitHub.TriggerLabel = " "
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "trigger_label") {
+		t.Fatalf("empty trigger label accepted: %v", err)
+	}
+}
+
+// The API carries write-capable task submission and review decisions, so an
+// open listener is only tolerable when nothing but this host can reach it.
+func TestAPIAuthError(t *testing.T) {
+	t.Setenv("HARNESS_TEST_API_TOKEN", "")
+	for _, tc := range []struct {
+		addr, token string
+		wantErr     bool
+	}{
+		{":8080", "", true},
+		{"0.0.0.0:8080", "", true},
+		{"10.0.0.5:8080", "", true},
+		{"[::]:8080", "", true},
+		{"127.0.0.1:8080", "", false},
+		{"localhost:8080", "", false},
+		{"[::1]:8080", "", false},
+		{":8080", "s3cret", false},
+	} {
+		c := Default()
+		c.Server.Addr = tc.addr
+		c.Server.APITokenEnv = "HARNESS_TEST_API_TOKEN"
+		t.Setenv("HARNESS_TEST_API_TOKEN", tc.token)
+		err := c.APIAuthError()
+		if (err != nil) != tc.wantErr {
+			t.Errorf("addr %q token %q: err = %v, wantErr %v", tc.addr, tc.token, err, tc.wantErr)
+		}
+		if got := c.APIToken(); got != tc.token {
+			t.Errorf("APIToken() = %q, want %q", got, tc.token)
+		}
+	}
+	c := Default()
+	c.Server.APITokenEnv = ""
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "api_token_env") {
+		t.Errorf("empty api_token_env accepted: %v", err)
+	}
+}
+
+// The repository check is anchored on data_root, not on the config file: a
+// config outside any repo that points its data_root into one is the same
+// hazard, and a config inside a repo whose data_root is elsewhere is fine.
+func TestLoadRefusesDataRootInsideAnyRepo(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	elsewhere := t.TempDir()
+	path := filepath.Join(elsewhere, "harness.yaml")
+	if err := os.WriteFile(path, []byte("data_root: "+filepath.Join(repo, "deep", "data")+"\n"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "inside the repository") {
+		t.Fatalf("data_root inside a repo the config is not in was accepted: %v", err)
 	}
 }

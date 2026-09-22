@@ -69,7 +69,7 @@ func newRunner(t *testing.T, bin string) (*Runner, string) {
 		t.Fatal(err)
 	}
 	return &Runner{Bin: bin, APIKey: "sk-test", Sessions: sess, Audit: aud, Grace: 200 * time.Millisecond,
-		ExtraEnv: []string{"GOFLAGS=-mod=mod", "HOME=/should/be/ignored"}}, root
+		ExtraEnv: []string{"GOFLAGS=-mod=mod", "HOME=/should/be/ignored", "GIT_CONFIG_GLOBAL=/should/be/ignored"}}, root
 }
 
 func spawn(t *testing.T, root string) Spawn {
@@ -117,6 +117,16 @@ func TestRunSuccessFixture(t *testing.T) {
 	}
 	if strings.Contains(string(env), "HOME=/should/be/ignored") {
 		t.Error("HOME override leaked into worker env")
+	}
+	// The worker's git must not see the operator's config: ~/.gitconfig
+	// carries the credential helper that would let it push as the operator.
+	for _, want := range []string{"\nGIT_TERMINAL_PROMPT=0\n", "\nGIT_CONFIG_NOSYSTEM=1\n", "\nGIT_CONFIG_GLOBAL=/dev/null\n"} {
+		if !strings.Contains("\n"+string(env), want) {
+			t.Errorf("env missing git isolation %q:\n%s", strings.TrimSpace(want), env)
+		}
+	}
+	if strings.Contains(string(env), "GIT_CONFIG_GLOBAL=/should/be/ignored") {
+		t.Error("ExtraEnv overrode the git isolation")
 	}
 	for _, k := range []string{"TERM_PROGRAM", "SHELL=", "USER=", "CLAUDECODE"} {
 		if strings.Contains(string(env), "\n"+k) {

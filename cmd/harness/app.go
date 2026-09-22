@@ -311,7 +311,7 @@ func buildApp(cfgPath string, logger *slog.Logger) (*app, error) {
 	}
 
 	httpSrv := &intake.Server{
-		Store: st, Queue: q, Audit: aud, Submit: submit, Logger: logger, Decider: pool, Reviews: st, Budget: ledger,
+		Store: st, Queue: q, Audit: aud, Submit: submit, Logger: logger, Decider: pool, Reviews: st, Budget: ledger, Token: cfg.APIToken(),
 		GitHub: intake.GitHubOptions{Secret: os.Getenv(cfg.GitHub.WebhookSecretEnv), TriggerLabel: cfg.GitHub.TriggerLabel, DefaultRef: cfg.GitHub.DefaultRef, Priority: 5, Kind: task.Kind(cfg.GitHub.Kind)},
 	}
 	if slackChannel != nil && slackSecret != "" {
@@ -372,6 +372,14 @@ func (a *app) Close() {
 
 // Serve runs HTTP + cron + pool until ctx is cancelled, then drains.
 func (a *app) Serve(ctx context.Context) error {
+	// An open API on a routable address lets anyone submit write-capable
+	// tasks and approve runs, so this is a startup failure, not a warning.
+	if err := a.Config.APIAuthError(); err != nil {
+		return err
+	}
+	if a.HTTP.Token == "" {
+		a.Logger.Warn("API bearer token unset; the API is open to local callers", "addr", a.Config.Server.Addr, "env", a.Config.Server.APITokenEnv)
+	}
 	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", a.Config.Server.Addr)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", a.Config.Server.Addr, err)

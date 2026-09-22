@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -35,7 +36,9 @@ type Submitter interface {
 type GitHubOptions struct {
 	// Secret verifies X-Hub-Signature-256; empty disables verification (dev only).
 	Secret string
-	// TriggerLabel restricts issue triggers to issues carrying the label; "" = any opened issue.
+	// TriggerLabel restricts issue triggers to issues carrying the label. Empty
+	// disables issue triggers entirely: an open trigger would let anyone who
+	// can file an issue start a paid run with a prompt they wrote.
 	TriggerLabel string
 	// DefaultRef is used when the payload lacks repository.default_branch.
 	DefaultRef string
@@ -59,8 +62,14 @@ type Server struct {
 	Decider review.Decider
 	// Reviews lists decisions (GET /runs/{id}/decisions); nil disables it.
 	Reviews review.Store
-	// Extra handlers mounted verbatim ("POST /slack/actions").
-	Extra   map[string]http.Handler
+	// Extra handlers mounted verbatim ("POST /slack/actions"). They are exempt
+	// from the bearer token because each verifies its caller itself (Slack
+	// signs its requests); a handler that does not must not be mounted here.
+	Extra map[string]http.Handler
+	// Token is the bearer token every route requires except GET /healthz,
+	// POST /webhooks/github (HMAC) and Extra. Empty leaves the API open, which
+	// the app only allows on a loopback listener (config.APIAuthError).
+	Token   string
 	Logger  *slog.Logger
 	MaxBody int64
 }
@@ -90,7 +99,49 @@ func (s *Server) Handler() http.Handler {
 	for pattern, h := range s.Extra {
 		mux.Handle(pattern, h)
 	}
-	return s.limitBody(mux)
+	return s.limitBody(s.requireToken(mux))
+}
+
+// requireToken is the API's authentication: `Authorization: Bearer <Token>`
+// on every route except the ones that carry their own verification. The
+// webhook and Slack endpoints cannot send a bearer token, and /healthz is
+// what the load balancer and the liveness probe poll.
+func (s *Server) requireToken(next http.Handler) http.Handler {
+	if s.Token == "" {
+		return next
+	}
+	exempt := map[string]bool{"/healthz": true, "/webhooks/github": true}
+	for pattern := range s.Extra {
+		path := pattern
+		if _, p, ok := strings.Cut(pattern, " "); ok {
+			path = p
+		}
+		exempt[path] = true
+	}
+	want := []byte(s.Token)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if exempt[r.URL.Path] {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if !bearerMatches(r.Header.Get("Authorization"), want) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="harness"`)
+			writeErr(w, http.StatusUnauthorized, errors.New("missing or invalid bearer token"))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// bearerMatches compares the Authorization header against the token in
+// constant time.
+func bearerMatches(header string, want []byte) bool {
+	scheme, got, ok := strings.Cut(strings.TrimSpace(header), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return false
+	}
+	got = strings.TrimSpace(got)
+	return len(got) > 0 && subtle.ConstantTimeCompare([]byte(got), want) == 1
 }
 
 // reviewBody is the POST /runs/{id}/review payload.
@@ -437,12 +488,19 @@ func (s *Server) githubWebhook(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusAccepted, map[string]string{"ignored": "pull request comment thread"})
 		return
 	}
+	// The label is the maintainer's decision to spend a run on this issue.
+	// Without one configured nothing triggers: the alternative is that the
+	// act of opening an issue starts a paid run on the opener's prompt.
+	if s.GitHub.TriggerLabel == "" {
+		writeJSON(w, http.StatusAccepted, map[string]string{"ignored": "no trigger label configured (github.trigger_label)"})
+		return
+	}
 	trigger := false
 	switch p.Action {
 	case "opened", "reopened":
-		trigger = s.GitHub.TriggerLabel == "" || hasLabel(p, s.GitHub.TriggerLabel)
+		trigger = hasLabel(p, s.GitHub.TriggerLabel)
 	case "labeled":
-		trigger = s.GitHub.TriggerLabel != "" && p.Label.Name == s.GitHub.TriggerLabel
+		trigger = p.Label.Name == s.GitHub.TriggerLabel
 	}
 	if !trigger {
 		writeJSON(w, http.StatusAccepted, map[string]string{"ignored": fmt.Sprintf("issues.%s without trigger label %q", p.Action, s.GitHub.TriggerLabel)})

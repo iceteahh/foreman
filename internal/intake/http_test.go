@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -267,7 +268,7 @@ func TestGitHubWebhook(t *testing.T) {
 	if s.Kind != task.KindCodeFix || s.Workspace.Repo != "org/svc" || s.Workspace.Ref != "develop" || s.RequestedBy != "webhook:github:org/svc#42" || s.Priority != 5 || s.Title != "Crash on empty input (#42)" {
 		t.Errorf("spec %+v", s)
 	}
-	for _, want := range []string{"Issue #42: Crash on empty input", "run with no args", "issues/42", "`org/svc`", "`develop`"} {
+	for _, want := range []string{"Issue #42", "<issue>\nTitle: Crash on empty input", "run with no args", "issues/42", "`org/svc`", "`develop`"} {
 		if !strings.Contains(s.Prompt, want) {
 			t.Errorf("prompt missing %q:\n%s", want, s.Prompt)
 		}
@@ -403,5 +404,105 @@ func TestReviewEndpoint(t *testing.T) {
 	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/slack/actions", nil))
 	if rec.Code != http.StatusTeapot {
 		t.Errorf("extra handler not mounted: %d", rec.Code)
+	}
+}
+
+// The API carries task submission (write-capable) and review decisions, so
+// every route needs the bearer token except the ones with their own
+// verification: /healthz (probes), the GitHub webhook (HMAC) and Extra
+// handlers (Slack signs its requests).
+func TestAPIRequiresBearerToken(t *testing.T) {
+	const secret, token = "s3cret", "t0k3n"
+	root := t.TempDir()
+	st, err := storesqlite.Open(filepath.Join(root, "h.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	q, _ := queuesqlite.New(st.DB())
+	aud, _ := audit.NewFileSink(filepath.Join(root, "audit"))
+	fs := &fakeSubmit{store: st, q: q}
+	extraHit := 0
+	s := &Server{Store: st, Queue: q, Audit: aud, Submit: fs, Token: token,
+		GitHub: GitHubOptions{Secret: secret, TriggerLabel: "harness", DefaultRef: "main"},
+		Extra: map[string]http.Handler{"POST /slack/actions": http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			extraHit++
+			w.WriteHeader(http.StatusNoContent)
+		})}}
+	srv := httptest.NewServer(s.Handler())
+	t.Cleanup(srv.Close)
+
+	spec := `{"kind":"code_fix","prompt":"p","workspace":{"type":"git","repo":"o/r","ref":"main"}}`
+	for name, hdr := range map[string]map[string]string{
+		"no header":     {},
+		"wrong token":   {"Authorization": "Bearer nope"},
+		"wrong scheme":  {"Authorization": "Basic " + token},
+		"empty bearer":  {"Authorization": "Bearer "},
+		"token in body": {"X-Api-Token": token},
+	} {
+		hdr["Content-Type"] = "application/json"
+		if resp, _ := do(t, "POST", srv.URL+"/tasks", spec, hdr); resp.StatusCode != 401 {
+			t.Errorf("%s: POST /tasks → %d, want 401", name, resp.StatusCode)
+		} else if resp.Header.Get("WWW-Authenticate") == "" {
+			t.Errorf("%s: 401 without WWW-Authenticate", name)
+		}
+		if resp, _ := do(t, "GET", srv.URL+"/runs?status=queued", nil, hdr); resp.StatusCode != 401 {
+			t.Errorf("%s: GET /runs → %d, want 401", name, resp.StatusCode)
+		}
+		if resp, _ := do(t, "POST", srv.URL+"/runs/x/review", `{"action":"approve"}`, hdr); resp.StatusCode != 401 {
+			t.Errorf("%s: POST review → %d, want 401", name, resp.StatusCode)
+		}
+	}
+	if len(fs.specs) != 0 {
+		t.Fatalf("%d tasks submitted without a token", len(fs.specs))
+	}
+	auth := map[string]string{"Authorization": "bearer " + token, "Content-Type": "application/json"}
+	if resp, body := do(t, "POST", srv.URL+"/tasks", spec, auth); resp.StatusCode != 201 {
+		t.Fatalf("POST /tasks with token → %d %v", resp.StatusCode, body)
+	}
+	if resp, _ := do(t, "GET", srv.URL+"/runs?status=queued", nil, auth); resp.StatusCode != 200 {
+		t.Errorf("GET /runs with token → %d", resp.StatusCode)
+	}
+	// Exempt: probes, the HMAC-verified webhook, and self-verifying extras.
+	if resp, _ := do(t, "GET", srv.URL+"/healthz", nil, nil); resp.StatusCode != 200 {
+		t.Errorf("GET /healthz without token → %d", resp.StatusCode)
+	}
+	p := issuePayload("labeled", "harness")
+	wh := map[string]string{"X-GitHub-Event": "issues", "X-Hub-Signature-256": sign(secret, p), "Content-Type": "application/json"}
+	if resp, body := do(t, "POST", srv.URL+"/webhooks/github", p, wh); resp.StatusCode != 201 {
+		t.Errorf("webhook on HMAC alone → %d %v", resp.StatusCode, body)
+	}
+	wh["X-Hub-Signature-256"] = "sha256=deadbeef"
+	if resp, _ := do(t, "POST", srv.URL+"/webhooks/github", p, wh); resp.StatusCode != 401 {
+		t.Errorf("webhook with a bad HMAC → %d, want 401", resp.StatusCode)
+	}
+	if resp, _ := do(t, "POST", srv.URL+"/slack/actions", "payload=x", nil); resp.StatusCode != 204 || extraHit != 1 {
+		t.Errorf("extra handler → %d (hits %d); extras verify their own callers", resp.StatusCode, extraHit)
+	}
+}
+
+// With no trigger label configured nothing triggers: the label is what makes
+// a run a maintainer's decision rather than a side effect of filing an issue.
+func TestWebhookWithoutTriggerLabelIgnoresIssues(t *testing.T) {
+	root := t.TempDir()
+	st, err := storesqlite.Open(filepath.Join(root, "h.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	q, _ := queuesqlite.New(st.DB())
+	aud, _ := audit.NewFileSink(filepath.Join(root, "audit"))
+	fs := &fakeSubmit{store: st, q: q}
+	s := &Server{Store: st, Queue: q, Audit: aud, Submit: fs, GitHub: GitHubOptions{DefaultRef: "main"}}
+	srv := httptest.NewServer(s.Handler())
+	t.Cleanup(srv.Close)
+	for _, p := range [][]byte{issuePayload("opened", ""), issuePayload("opened", "", "harness"), issuePayload("labeled", "harness")} {
+		resp, body := do(t, "POST", srv.URL+"/webhooks/github", p, map[string]string{"X-GitHub-Event": "issues"})
+		if resp.StatusCode != 202 || !strings.Contains(fmt.Sprint(body["ignored"]), "trigger label") {
+			t.Errorf("→ %d %v, want 202 ignored", resp.StatusCode, body)
+		}
+	}
+	if len(fs.specs) != 0 {
+		t.Fatalf("%d tasks submitted with no trigger label", len(fs.specs))
 	}
 }

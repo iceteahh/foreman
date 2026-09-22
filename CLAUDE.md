@@ -4,7 +4,7 @@ Go harness that runs autonomous agent tasks by spawning Claude Code headless (`c
 Design: `claude-p-agent-harness-design.md`. Plan: `IMPLEMENTATION_PLAN.md`. Verified CLI behaviour: `docs/cli-contract.md`.
 
 ## Secrets
-`.env` (gitignored, template `.env.example`) holds the worker credential (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`; an OAuth token in `ANTHROPIC_API_KEY` gets 401), `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET`, `HARNESS_LOG`.
+`.env` (gitignored, template `.env.example`) holds the worker credential (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`; an OAuth token in `ANTHROPIC_API_KEY` gets 401), `HARNESS_API_TOKEN` (the HTTP API bearer token, `server.api_token_env`), `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET`, `HARNESS_LOG`.
 `bin/harness`, `make`, and `scripts/demo-m1.sh` load it from the working directory; existing environment variables win.
 
 ## Commands
@@ -59,10 +59,21 @@ Fixtures in `testdata/events/` were captured from CLI 2.1.243 (2.1.270 for the t
 
 ## Rules
 - No LLM calls outside `runner` and `eval/judge`.
+- The HTTP API requires a bearer token (`server.api_token_env`) on every route except `GET /healthz`,
+  `POST /webhooks/github` (HMAC) and the self-verifying `Extra` handlers. `serve` refuses to start with no
+  token unless `server.addr` is loopback: the same listener carries the webhook, so it is routinely exposed,
+  and an open API lets anyone submit a write-capable task or approve any run.
+- Workers get `GIT_TERMINAL_PROMPT=0`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null` and no kind
+  carries an unrestricted `Bash(git *)` — write kinds get `git status|diff|log|show` only. The worker's `HOME`
+  is the operator's, so without both the worker could `git push` through the operator's credential helper,
+  skipping the judge, review and delivery (`templates` test pins it).
+- Issue title and body are fenced in an `<issue>` block the prompt names as content, not instructions, ahead
+  of the Instructions section, and `templates.Render` rewrites a `</issue>` inside them so user text cannot
+  close the fence early. `github.trigger_label` is required: without it, opening an issue starts a paid run.
 - Never pass user-controlled text through a shell: always `exec.Command` argv. Acceptance commands are split with go-shellwords, not `sh -c`.
 - Classify a `result` event on `is_error` + `terminal_reason`, never on `subtype` alone.
 - `--session-id` XOR `--resume`, unless `--fork-session`. Session ids are never reused.
-- Workers get an env allowlist only (`PATH`, `HOME`, `CLAUDE_CONFIG_DIR`, `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`, plus `env:` from harness.yaml); never override `HOME`.
+- Workers get an env allowlist only (`PATH`, `HOME`, `CLAUDE_CONFIG_DIR`, the git isolation trio above, `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`, plus `env:` from harness.yaml); never override `HOME`, and `env:` may not override any of the pinned names (`runner.pinnedEnv`).
 - Kill the worker's process group, not just the pid. Under docker, retry `docker kill` until the container is
   confirmed: `docker run` creates it asynchronously, so one kill can be a silent no-op.
 - Secrets reach a container as `-e NAME` only (value from the docker client's environment), never in argv.
@@ -85,7 +96,9 @@ Fixtures in `testdata/events/` were captured from CLI 2.1.243 (2.1.270 for the t
   deliverable is `structured_output`, so their acceptance always sets a `json_schema` and `deliver.Report` ships it.
 - SQLite timestamps use the fixed-width `sqlTime`, never `time.RFC3339Nano`: these columns are compared as TEXT and
   a trimmed fraction sorts wrong (`…53.000327Z` > `…53.000327852Z`), which makes a just-enqueued job invisible.
-- A golden case id is the gate's join key: renaming one reads as deleting a case and adding another.
+- A golden case id is the gate's join key: renaming one reads as deleting a case and adding another. It must
+  match `^[a-z0-9][a-z0-9-]*$` and a fixture path must stay inside the case's directory after `filepath.Clean`:
+  the id names the origin the suite creates and removes.
 - A golden case is not a deterministic test: two runs of an unchanged harness on 2026-09-21 disagreed about 4 of
   21 cases. Score the majority of several samples (`eval run -repeat N`) before reading a single per-case
   pass → fail as a regression, and never widen the gate to silence the noise — that turns the suite off quietly.

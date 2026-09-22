@@ -49,6 +49,12 @@ is a **single-sample** run and carries this variance.
 
 ## Writing a case
 
+A case id (the file's base name, or an explicit `"id"`) must match
+`^[a-z0-9][a-z0-9-]*$`: it names the fixture origin the suite creates and
+removes under the work root, so it can never be allowed to carry a path.
+Fixture paths are resolved relative to the case file and must stay inside its
+directory after cleaning.
+
 ```jsonc
 {
   "description": "what behaviour this case pins down, and why it matters",

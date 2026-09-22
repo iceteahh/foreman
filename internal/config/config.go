@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,6 +46,13 @@ type Config struct {
 
 type Server struct {
 	Addr string `yaml:"addr"`
+	// APITokenEnv names the variable holding the bearer token every API route
+	// requires, except GET /healthz and POST /webhooks/github (which keeps its
+	// HMAC). It is a variable name, never the token. The harness refuses to
+	// serve without a token unless Addr is loopback: the same listener carries
+	// the webhook, so it is routinely exposed, and an open API lets anyone
+	// submit a write-capable task or approve any run.
+	APITokenEnv string `yaml:"api_token_env"`
 }
 
 type Concurrency struct {
@@ -313,7 +321,7 @@ func ptr[T any](v T) *T { return &v }
 // Default returns the design §11 defaults for a single-node local install.
 func Default() Config {
 	return Config{
-		Server:      Server{Addr: ":8080"},
+		Server:      Server{Addr: ":8080", APITokenEnv: "HARNESS_API_TOKEN"}, //nolint:gosec // env var name, not a secret
 		DataRoot:    ".harness",
 		Concurrency: Concurrency{Global: 2, PerKind: map[string]int{"code_fix": 2, "code_review": 2, "report": 1, "triage": 1}},
 		Budgets:     Budgets{PerRunUSDDefault: 2.5, DailyUSD: map[string]float64{"code_fix": 60, "code_review": 30, "report": 25, "triage": 15, "global": 120}},
@@ -371,10 +379,8 @@ func Load(path string) (Config, error) {
 		}
 		c.DataRoot = filepath.Join(base, c.DataRoot)
 	}
-	if base, err := filepath.Abs(filepath.Dir(path)); err == nil {
-		if repo, inside := repoHolding(base, c.DataRoot); inside {
-			return c, fmt.Errorf("data_root %s is inside the repository %s: workspaces are checked out under it and the CLI walks parent directories for CLAUDE.md and .claude/, so every worker would inherit this repository's own instructions; move it outside the repo (e.g. ../foreman-data)", c.DataRoot, repo)
-		}
+	if repo, inside := repoHolding(c.DataRoot); inside {
+		return c, fmt.Errorf("data_root %s is inside the repository %s: workspaces are checked out under it and the CLI walks parent directories for CLAUDE.md and .claude/, so every worker would inherit that repository's own instructions; move it outside the repo (e.g. ../foreman-data)", c.DataRoot, repo)
 	}
 	return c, c.Validate()
 }
@@ -470,6 +476,15 @@ func (c Config) Validate() error {
 	if k := task.Kind(c.GitHub.Kind); c.GitHub.Kind != "" && !k.Valid() {
 		errs = append(errs, fmt.Errorf("github.kind %q is not a known task kind %v", c.GitHub.Kind, task.Kinds))
 	}
+	// Without a label, every opened issue starts a paid run with a prompt the
+	// issue's author wrote. The label is what makes a maintainer's decision the
+	// trigger rather than the act of filing an issue.
+	if strings.TrimSpace(c.GitHub.TriggerLabel) == "" {
+		errs = append(errs, errors.New("github.trigger_label is required: without it anyone who can open an issue can start a run"))
+	}
+	if strings.TrimSpace(c.Server.APITokenEnv) == "" {
+		errs = append(errs, errors.New("server.api_token_env must name the variable holding the API bearer token"))
+	}
 	return errors.Join(errs...)
 }
 
@@ -518,6 +533,39 @@ func (c Config) Grace() time.Duration { return time.Duration(c.Worker.GraceMS) *
 
 // DraftPRs defaults to true.
 func (c Config) DraftPRs() bool { return c.GitHub.DraftPRs == nil || *c.GitHub.DraftPRs }
+
+// APIToken is the bearer token the intake API requires, read from
+// server.api_token_env. Empty means the API is unauthenticated, which
+// APIAuthError only allows on a loopback listener.
+func (c Config) APIToken() string { return strings.TrimSpace(os.Getenv(c.Server.APITokenEnv)) }
+
+// APIAuthError is why `serve` must not start: no bearer token while the bind
+// address is reachable from other hosts. A loopback listener may run open,
+// which is what the demos and a developer's laptop do.
+func (c Config) APIAuthError() error {
+	if c.APIToken() != "" || isLoopbackAddr(c.Server.Addr) {
+		return nil
+	}
+	return fmt.Errorf("server.addr %s is not loopback and $%s is unset: the API would accept tasks and review decisions from anyone who can reach the port; set the token (openssl rand -hex 32) or bind 127.0.0.1", c.Server.Addr, c.Server.APITokenEnv)
+}
+
+// isLoopbackAddr reports whether a listen address only accepts local
+// connections. An empty host (":8080") binds every interface.
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	host = strings.Trim(host, "[]")
+	if host == "" {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
 
 // CheckVersion defaults to true.
 func (c Config) CheckVersion() bool { return c.Worker.CheckVersion == nil || *c.Worker.CheckVersion }
@@ -678,21 +726,16 @@ func (c Config) WorkerEnv() []string {
 	return out
 }
 
-// repoHolding reports the git repository containing dir, and whether dataRoot
-// lies inside it. Workspaces are checked out under data_root and the CLI walks
-// parent directories for CLAUDE.md and .claude/, so a root inside the repo the
-// harness itself lives in silently feeds the harness's own instructions to
-// every worker. Nothing fails; the runs are just quietly wrong.
-func repoHolding(dir, dataRoot string) (string, bool) {
+// repoHolding reports the git repository dataRoot lies inside, if any. It
+// walks up from data_root itself, not from the config file: the CLI walks the
+// *workspace's* parents for CLAUDE.md and .claude/, so what matters is the
+// repository around the checkouts, wherever the config happens to live. A root
+// inside any repository silently feeds that repository's instructions to every
+// worker. Nothing fails; the runs are just quietly wrong.
+func repoHolding(dataRoot string) (string, bool) {
+	dir := filepath.Clean(dataRoot)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-			rel, err := filepath.Rel(dir, dataRoot)
-			if err != nil {
-				return "", false
-			}
-			if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-				return "", false
-			}
 			return dir, true
 		}
 		parent := filepath.Dir(dir)

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -66,6 +67,11 @@ func OutcomeOf(r *task.Run) Outcome {
 		return OutcomeError
 	}
 }
+
+// caseIDPattern is what a case id may look like. The id names the fixture
+// origin the suite creates and removes (`<root>/<id>.git`), so it must never be
+// able to carry a path: `../` in an id would point RemoveAll somewhere else.
+var caseIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 // Case is one `evals/golden/<id>.json` document.
 type Case struct {
@@ -169,8 +175,11 @@ func (c *Case) HasTag(tag string) bool {
 // regression.
 func (c *Case) Validate() error {
 	var errs []error
-	if strings.TrimSpace(c.ID) == "" {
+	switch {
+	case strings.TrimSpace(c.ID) == "":
 		errs = append(errs, errors.New("id is empty"))
+	case !caseIDPattern.MatchString(c.ID):
+		errs = append(errs, fmt.Errorf("id %q must match %s (it names files under the suite root)", c.ID, caseIDPattern))
 	}
 	if strings.TrimSpace(c.Description) == "" {
 		errs = append(errs, errors.New("description is empty (say what behaviour the case pins down)"))
@@ -188,7 +197,7 @@ func (c *Case) Validate() error {
 		errs = append(errs, errors.New("repo sets both bundle and dir; pick one"))
 	}
 	for _, p := range []string{c.Repo.Bundle, c.Repo.Dir} {
-		if p != "" && (filepath.IsAbs(p) || strings.HasPrefix(filepath.ToSlash(p), "../")) {
+		if p != "" && escapesCaseDir(p) {
 			errs = append(errs, fmt.Errorf("repo path %q must be relative to the case file and stay inside the suite", p))
 		}
 	}
@@ -216,6 +225,17 @@ func (c *Case) Validate() error {
 		errs = append(errs, fmt.Errorf("acceptance override: %w", err))
 	}
 	return errors.Join(errs...)
+}
+
+// escapesCaseDir reports whether a fixture path could resolve outside the
+// case file's directory. The path is cleaned first: "fixtures/../../etc" has
+// no leading "../" but leaves the suite just the same.
+func escapesCaseDir(p string) bool {
+	clean := filepath.Clean(filepath.FromSlash(p))
+	if filepath.IsAbs(clean) || filepath.VolumeName(clean) != "" {
+		return true
+	}
+	return clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator))
 }
 
 // Suite is a loaded directory of cases, ordered by id.

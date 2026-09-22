@@ -122,6 +122,7 @@ scripts; existing environment variables win. Template: [.env.example](.env.examp
 |---|---|
 | `CLAUDE_CODE_OAUTH_TOKEN` | Worker credential from `claude setup-token` (`sk-ant-oat01-…`) |
 | `ANTHROPIC_API_KEY` | Alternative worker credential (`sk-ant-api03-…`) |
+| `HARNESS_API_TOKEN` | Bearer token for the HTTP API; `serve` refuses to start without it unless `server.addr` is loopback |
 | `GITHUB_TOKEN` | Repo clone and draft PRs |
 | `GITHUB_WEBHOOK_SECRET` | Verifies `POST /webhooks/github` |
 | `SLACK_BOT_TOKEN` / `SLACK_SIGNING_SECRET` | Review posts and button callbacks |
@@ -162,6 +163,12 @@ GET  /runs/{id}/decisions       the review audit trail
 GET  /budget                    today's spend against the ceilings
 POST /webhooks/github           issue/label triggers (HMAC-verified)
 ```
+
+Every route needs `Authorization: Bearer $HARNESS_API_TOKEN` except `GET /healthz` (probes) and
+`POST /webhooks/github`, which keeps its HMAC because GitHub cannot send a bearer token. The
+token's variable is named by `server.api_token_env`. `serve` refuses to start without one unless
+`server.addr` is loopback: this listener is the one the webhook needs exposed, and an open API
+lets anyone submit a write-capable task or approve any run.
 
 ## Task kinds
 
@@ -274,6 +281,11 @@ scripts/demo-m*.sh  end-to-end demos, offline by default
 - `--session-id` XOR `--resume`, unless `--fork-session`; session ids are never reused.
 - Kill the worker's process group, not just the pid.
 - Fan-out children must be file-disjoint, or `fanout.Decode` refuses the plan.
+- The HTTP API needs a bearer token on every route but `/healthz` and the HMAC-verified webhook, and
+  `serve` refuses to start open on a non-loopback address.
+- Workers never see the operator's git config, and no task kind carries an unrestricted `Bash(git *)` —
+  otherwise a worker could push through the operator's credential helper and skip the whole evaluation
+  pipeline.
 - `data_root` lives outside this repo; `config.Load` refuses a root inside it, because the CLI would
   otherwise walk up and feed the harness's own `CLAUDE.md` to every worker.
 
